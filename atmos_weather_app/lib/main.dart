@@ -7,7 +7,7 @@ import 'screens/main_scaffold.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Set status bar transparent
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -15,7 +15,7 @@ void main() async {
       statusBarIconBrightness: Brightness.light,
     ),
   );
-  
+
   // Lock to portrait mode
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -123,8 +123,7 @@ class _AtmosSplashState extends State<AtmosSplash>
                         color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(24),
                         border: Border.all(
-                            color: Colors.white.withOpacity(0.4),
-                            width: 2),
+                            color: Colors.white.withOpacity(0.4), width: 2),
                       ),
                       child: const Icon(
                         Icons.cloud_queue_rounded,

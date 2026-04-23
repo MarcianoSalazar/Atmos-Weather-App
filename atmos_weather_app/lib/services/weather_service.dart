@@ -5,7 +5,7 @@ import '../models/weather_model.dart';
 class WeatherService {
   // Replace with your OpenWeatherMap API key
   // Get free key at: https://openweathermap.org/api
-  static const String _apiKey = '09cafe23cb9fdc897c2d7ab10a61be5e';
+  static const String _apiKey = 'e8a83f5133b0cbac5b85eb65a806fdab';
   static const String _baseUrl = 'https://api.openweathermap.org/data/2.5';
   static const String _geoUrl = 'https://api.openweathermap.org/geo/1.0';
 
@@ -31,13 +31,8 @@ class WeatherService {
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         return WeatherData.fromJson(json);
-      } else if (response.statusCode == 404) {
-        throw WeatherException('City not found. Please check the name.');
-      } else if (response.statusCode == 401) {
-        throw WeatherException('Invalid API key. Check your configuration.');
       } else {
-        throw WeatherException(
-            'Weather service unavailable (${response.statusCode}).');
+        throw _mapApiError(response, fallbackPrefix: 'Weather service error');
       }
     } on WeatherException {
       rethrow;
@@ -69,7 +64,7 @@ class WeatherService {
         final json = jsonDecode(response.body);
         return _parseForecast(json);
       } else {
-        throw WeatherException('Forecast unavailable.');
+        throw _mapApiError(response, fallbackPrefix: 'Forecast unavailable');
       }
     } on WeatherException {
       rethrow;
@@ -192,6 +187,45 @@ class WeatherService {
     } catch (_) {
       return [];
     }
+  }
+
+  WeatherException _mapApiError(http.Response response,
+      {required String fallbackPrefix}) {
+    final apiMessage = _extractApiMessage(response.body);
+
+    if (response.statusCode == 401) {
+      return WeatherException(
+        'Invalid API key. Verify your OpenWeather key and make sure it is active.',
+      );
+    }
+    if (response.statusCode == 404) {
+      return WeatherException('City not found. Please check the name.');
+    }
+    if (response.statusCode == 429) {
+      return WeatherException('API rate limit reached. Try again later.');
+    }
+
+    if (apiMessage != null && apiMessage.isNotEmpty) {
+      return WeatherException(
+          '$fallbackPrefix (${response.statusCode}): $apiMessage');
+    }
+
+    return WeatherException('$fallbackPrefix (${response.statusCode}).');
+  }
+
+  String? _extractApiMessage(String responseBody) {
+    try {
+      final parsed = jsonDecode(responseBody);
+      if (parsed is Map<String, dynamic>) {
+        final message = parsed['message'];
+        if (message is String) {
+          return message;
+        }
+      }
+    } catch (_) {
+      // Ignore parse failures and use fallback messages.
+    }
+    return null;
   }
 
   // Get mock Philippines alerts (in production, connect to PAGASA API)
