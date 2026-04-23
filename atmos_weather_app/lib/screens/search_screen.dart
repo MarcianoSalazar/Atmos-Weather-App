@@ -156,9 +156,9 @@ class _SearchScreenState extends State<SearchScreen> {
                               ),
                             )
                           : provider.searchResults.isEmpty
-                              ? Center(
+                              ? const Center(
                                   child: Padding(
-                                    padding: const EdgeInsets.all(24),
+                                    padding: EdgeInsets.all(24),
                                     child: Text(
                                       'No locations found',
                                       style: TextStyle(
@@ -172,7 +172,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                   padding: EdgeInsets.zero,
                                   shrinkWrap: true,
                                   itemCount: provider.searchResults.length,
-                                  separatorBuilder: (_, __) => Divider(
+                                  separatorBuilder: (_, __) => const Divider(
                                       height: 1, color: AtmosTheme.divider),
                                   itemBuilder: (context, index) {
                                     final result =
@@ -211,7 +211,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                       ),
                                       subtitle: Text(
                                         subtitle,
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           color: AtmosTheme.textSecondary,
                                           fontSize: 12,
                                         ),

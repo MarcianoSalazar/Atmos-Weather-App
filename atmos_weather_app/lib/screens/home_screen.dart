@@ -142,18 +142,17 @@ class _HomeBody extends StatelessWidget {
               child: Column(
                 children: [
                   // Table header row
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Row(
                       children: [
-                        const SizedBox(width: 60), // date col
-                        const SizedBox(width: 56), // day name col
-                        const Spacer(),
-                        const SizedBox(width: 30), // icon
-                        const SizedBox(width: 10), // rain%
-                        const SizedBox(width: 48), // low
-                        const SizedBox(width: 36), // high
+                        SizedBox(width: 60), // date col
+                        SizedBox(width: 56), // day name col
+                        Spacer(),
+                        SizedBox(width: 30), // icon
+                        SizedBox(width: 10), // rain%
+                        SizedBox(width: 48), // low
+                        SizedBox(width: 36), // high
                       ],
                     ),
                   ),
@@ -175,8 +174,7 @@ class _HomeBody extends StatelessWidget {
             GestureDetector(
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(
-                    builder: (_) => const ViewMoreScreen()),
+                MaterialPageRoute(builder: (_) => const ViewMoreScreen()),
               ),
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -185,8 +183,7 @@ class _HomeBody extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(20),
-                  border:
-                      Border.all(color: Colors.white.withOpacity(0.3)),
+                  border: Border.all(color: Colors.white.withOpacity(0.3)),
                 ),
                 child: const Text(
                   'View more',
@@ -228,8 +225,8 @@ class _ForecastTableRow extends StatelessWidget {
         border: !isLast
             ? Border(
                 bottom: BorderSide(
-                  color: Colors.white.withOpacity(0.1),
-                ))
+                color: Colors.white.withOpacity(0.1),
+              ))
             : null,
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),

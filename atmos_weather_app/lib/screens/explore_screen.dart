@@ -75,8 +75,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     ),
                     // Evacuation centers
                     ..._evacuationCenters.map((center) => Marker(
-                          point:
-                              LatLng(center['lat'], center['lon']),
+                          point: LatLng(center['lat'], center['lon']),
                           width: 36,
                           height: 36,
                           child: Tooltip(
@@ -85,13 +84,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               decoration: BoxDecoration(
                                 color: const Color(0xFF43A047),
                                 shape: BoxShape.circle,
-                                border: Border.all(
-                                    color: Colors.white, width: 2),
+                                border:
+                                    Border.all(color: Colors.white, width: 2),
                               ),
-                              child: const Icon(
-                                  Icons.local_hospital_rounded,
-                                  color: Colors.white,
-                                  size: 16),
+                              child: const Icon(Icons.local_hospital_rounded,
+                                  color: Colors.white, size: 16),
                             ),
                           ),
                         )),
@@ -156,15 +153,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
               left: 0,
               right: 0,
               child: GestureDetector(
-                onTap: () =>
-                    setState(() => _panelExpanded = !_panelExpanded),
+                onTap: () => setState(() => _panelExpanded = !_panelExpanded),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(20)),
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(20)),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.2),
@@ -217,13 +213,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               ],
                             ),
                             const Spacer(),
-                            Row(
+                            const Row(
                               children: [
-                                _ActionBtn(
-                                    icon: Icons.bookmark_border_rounded),
-                                const SizedBox(width: 8),
+                                _ActionBtn(icon: Icons.bookmark_border_rounded),
+                                SizedBox(width: 8),
                                 _ActionBtn(icon: Icons.share_rounded),
-                                const SizedBox(width: 8),
+                                SizedBox(width: 8),
                                 _ActionBtn(icon: Icons.close_rounded),
                               ],
                             ),
@@ -234,8 +229,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       if (weather != null) ...[
                         // Current Weather + Alert info grid
                         Padding(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 16),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Row(
                             children: [
                               // Current Weather
@@ -243,18 +237,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: AtmosTheme.lightBlue
-                                        .withOpacity(0.3),
-                                    borderRadius:
-                                        BorderRadius.circular(12),
+                                    color:
+                                        AtmosTheme.lightBlue.withOpacity(0.3),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        _capitalize(
-                                            weather.description),
+                                        _capitalize(weather.description),
                                         style: const TextStyle(
                                           color: AtmosTheme.primaryBlue,
                                           fontSize: 12,
@@ -304,8 +296,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                     padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFFFE0E0),
-                                      borderRadius:
-                                          BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Column(
                                       crossAxisAlignment:
@@ -313,10 +304,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                       children: [
                                         const Row(
                                           children: [
-                                            Icon(
-                                                Icons.warning_amber_rounded,
-                                                color:
-                                                    Color(0xFFE53935),
+                                            Icon(Icons.warning_amber_rounded,
+                                                color: Color(0xFFE53935),
                                                 size: 14),
                                             SizedBox(width: 4),
                                             Text(
@@ -324,8 +313,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                               style: TextStyle(
                                                 color: Color(0xFFE53935),
                                                 fontSize: 11,
-                                                fontWeight:
-                                                    FontWeight.bold,
+                                                fontWeight: FontWeight.bold,
                                               ),
                                             ),
                                           ],
@@ -351,8 +339,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         const SizedBox(height: 8),
 
                         Padding(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 16),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Row(
                             children: [
                               // Safest Routes
@@ -361,14 +348,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFE8F5E9),
-                                    borderRadius:
-                                        BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                  child: Column(
+                                  child: const Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      const Text(
+                                      Text(
                                         'Safest Routes',
                                         style: TextStyle(
                                           color: Color(0xFF2E7D32),
@@ -376,17 +362,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                      const SizedBox(height: 6),
+                                      SizedBox(height: 6),
                                       _RouteItem(
                                         label: 'Route A',
                                         tag: 'Flood Safe',
-                                        color: const Color(0xFF43A047),
+                                        color: Color(0xFF43A047),
                                       ),
-                                      const SizedBox(height: 4),
+                                      SizedBox(height: 4),
                                       _RouteItem(
                                         label: 'Route B',
                                         tag: 'Light Traffic',
-                                        color: const Color(0xFFFDD835),
+                                        color: Color(0xFFFDD835),
                                       ),
                                     ],
                                   ),
@@ -400,8 +386,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFE3F2FD),
-                                    borderRadius:
-                                        BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Column(
                                     crossAxisAlignment:
@@ -416,16 +401,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                         ),
                                       ),
                                       const SizedBox(height: 6),
-                                      ..._evacuationCenters.map((c) =>
-                                          Padding(
-                                            padding:
-                                                const EdgeInsets.only(
-                                                    bottom: 4),
+                                      ..._evacuationCenters.map((c) => Padding(
+                                            padding: const EdgeInsets.only(
+                                                bottom: 4),
                                             child: Row(
                                               children: [
                                                 const Icon(
-                                                  Icons
-                                                      .local_hospital_rounded,
+                                                  Icons.local_hospital_rounded,
                                                   color: Color(0xFF43A047),
                                                   size: 12,
                                                 ),
@@ -433,8 +415,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                                 Expanded(
                                                   child: Text(
                                                     '${c['name']} (${c['distance']})',
-                                                    style:
-                                                        const TextStyle(
+                                                    style: const TextStyle(
                                                       color: AtmosTheme
                                                           .textPrimary,
                                                       fontSize: 10,
@@ -461,23 +442,20 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           height: 80,
                           child: ListView.builder(
                             scrollDirection: Axis.horizontal,
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 16),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
                             itemCount: hourly.take(8).length,
                             itemBuilder: (context, index) {
                               final h = hourly[index];
                               return Padding(
                                 padding: const EdgeInsets.only(right: 12),
                                 child: Column(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.center,
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Text(
                                       index == 0
                                           ? 'Now'
-                                          : WeatherUtils.formatHour(
-                                              h.time),
-                                      style: TextStyle(
+                                          : WeatherUtils.formatHour(h.time),
+                                      style: const TextStyle(
                                         color: AtmosTheme.textSecondary,
                                         fontSize: 10,
                                       ),
@@ -487,8 +465,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                         iconCode: h.iconCode, size: 22),
                                     const SizedBox(height: 4),
                                     Text(
-                                      WeatherUtils.formatTemp(
-                                          h.temperature),
+                                      WeatherUtils.formatTemp(h.temperature),
                                       style: const TextStyle(
                                         color: AtmosTheme.textPrimary,
                                         fontSize: 13,
@@ -598,8 +575,7 @@ class _RouteItem extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           label,
-          style: const TextStyle(
-              color: AtmosTheme.textPrimary, fontSize: 11),
+          style: const TextStyle(color: AtmosTheme.textPrimary, fontSize: 11),
         ),
         const SizedBox(width: 4),
         Text(

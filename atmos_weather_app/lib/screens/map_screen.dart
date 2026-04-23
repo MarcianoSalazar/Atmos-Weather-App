@@ -157,8 +157,8 @@ class _MapScreenState extends State<MapScreen> {
                         ? const Padding(
                             padding: EdgeInsets.all(20),
                             child: Center(
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2)),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2)),
                           )
                         : provider.searchResults.isEmpty
                             ? const Padding(
@@ -174,7 +174,7 @@ class _MapScreenState extends State<MapScreen> {
                                 shrinkWrap: true,
                                 padding: EdgeInsets.zero,
                                 itemCount: provider.searchResults.length,
-                                separatorBuilder: (_, __) => Divider(
+                                separatorBuilder: (_, __) => const Divider(
                                     height: 1, color: AtmosTheme.divider),
                                 itemBuilder: (context, i) {
                                   final r = provider.searchResults[i];
@@ -197,10 +197,8 @@ class _MapScreenState extends State<MapScreen> {
                                       FocusScope.of(context).unfocus();
 
                                       // Move map to selected location
-                                      final rLat =
-                                          (r['lat'] ?? lat).toDouble();
-                                      final rLon =
-                                          (r['lon'] ?? lon).toDouble();
+                                      final rLat = (r['lat'] ?? lat).toDouble();
+                                      final rLon = (r['lon'] ?? lon).toDouble();
                                       _mapController.move(
                                           LatLng(rLat, rLon), 11);
 
@@ -209,8 +207,7 @@ class _MapScreenState extends State<MapScreen> {
 
                                       // Navigate home after short delay
                                       Future.delayed(
-                                          const Duration(
-                                              milliseconds: 400),
+                                          const Duration(milliseconds: 400),
                                           () => provider.setNavIndex(0));
                                     },
                                   );
@@ -229,8 +226,7 @@ class _MapScreenState extends State<MapScreen> {
                   children: [
                     _MapBtn(
                       icon: Icons.my_location_rounded,
-                      onTap: () =>
-                          _mapController.move(LatLng(lat, lon), 12),
+                      onTap: () => _mapController.move(LatLng(lat, lon), 12),
                       tooltip: 'My Location',
                     ),
                     const SizedBox(height: 8),
@@ -329,8 +325,7 @@ class _SearchResultTile extends StatelessWidget {
           children: [
             // Distance badge — like the "2.8 km" in the wireframe
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
               decoration: BoxDecoration(
                 color: AtmosTheme.lightBlue.withOpacity(0.5),
                 borderRadius: BorderRadius.circular(6),
@@ -468,8 +463,7 @@ class _LocationChip extends StatelessWidget {
     );
   }
 
-  String _cap(String s) =>
-      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+  String _cap(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 }
 
 class _ChipBtn extends StatelessWidget {

@@ -5,13 +5,12 @@ import '../models/weather_model.dart';
 class WeatherService {
   // Replace with your OpenWeatherMap API key
   // Get free key at: https://openweathermap.org/api
-  static const String _apiKey = 'YOUR_OPENWEATHERMAP_API_KEY';
+  static const String _apiKey = '09cafe23cb9fdc897c2d7ab10a61be5e';
   static const String _baseUrl = 'https://api.openweathermap.org/data/2.5';
   static const String _geoUrl = 'https://api.openweathermap.org/geo/1.0';
 
   // Get current weather by coordinates
-  Future<WeatherData> getCurrentWeatherByCoords(
-      double lat, double lon) async {
+  Future<WeatherData> getCurrentWeatherByCoords(double lat, double lon) async {
     final url =
         '$_baseUrl/weather?lat=$lat&lon=$lon&appid=$_apiKey&units=metric';
     return _fetchCurrentWeather(url);
@@ -27,8 +26,8 @@ class WeatherService {
   Future<WeatherData> _fetchCurrentWeather(String url) async {
     try {
       final response = await http.get(Uri.parse(url)).timeout(
-        const Duration(seconds: 15),
-      );
+            const Duration(seconds: 15),
+          );
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         return WeatherData.fromJson(json);
@@ -37,7 +36,8 @@ class WeatherService {
       } else if (response.statusCode == 401) {
         throw WeatherException('Invalid API key. Check your configuration.');
       } else {
-        throw WeatherException('Weather service unavailable (${response.statusCode}).');
+        throw WeatherException(
+            'Weather service unavailable (${response.statusCode}).');
       }
     } on WeatherException {
       rethrow;
@@ -47,8 +47,7 @@ class WeatherService {
   }
 
   // Get 5-day forecast by coordinates
-  Future<List<ForecastDay>> getForecastByCoords(
-      double lat, double lon) async {
+  Future<List<ForecastDay>> getForecastByCoords(double lat, double lon) async {
     final url =
         '$_baseUrl/forecast?lat=$lat&lon=$lon&appid=$_apiKey&units=metric';
     return _fetchForecast(url);
@@ -64,8 +63,8 @@ class WeatherService {
   Future<List<ForecastDay>> _fetchForecast(String url) async {
     try {
       final response = await http.get(Uri.parse(url)).timeout(
-        const Duration(seconds: 15),
-      );
+            const Duration(seconds: 15),
+          );
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         return _parseForecast(json);
@@ -91,8 +90,7 @@ class WeatherService {
     }
 
     final List<ForecastDay> days = [];
-    final today =
-        DateTime.now();
+    final today = DateTime.now();
     final todayKey =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
@@ -152,14 +150,13 @@ class WeatherService {
   }
 
   // Get hourly forecast
-  Future<List<HourlyForecast>> getHourlyForecast(
-      double lat, double lon) async {
+  Future<List<HourlyForecast>> getHourlyForecast(double lat, double lon) async {
     final url =
         '$_baseUrl/forecast?lat=$lat&lon=$lon&appid=$_apiKey&units=metric&cnt=12';
     try {
       final response = await http.get(Uri.parse(url)).timeout(
-        const Duration(seconds: 15),
-      );
+            const Duration(seconds: 15),
+          );
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         final List list = json['list'] ?? [];
@@ -185,8 +182,8 @@ class WeatherService {
         '$_geoUrl/direct?q=${Uri.encodeComponent(query)}&limit=10&appid=$_apiKey';
     try {
       final response = await http.get(Uri.parse(url)).timeout(
-        const Duration(seconds: 10),
-      );
+            const Duration(seconds: 10),
+          );
       if (response.statusCode == 200) {
         final List data = jsonDecode(response.body);
         return data.map((e) => Map<String, dynamic>.from(e)).toList();

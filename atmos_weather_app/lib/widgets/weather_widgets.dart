@@ -49,11 +49,13 @@ class _AtmosSearchBarState extends State<AtmosSearchBar> {
         style: const TextStyle(color: Colors.white, fontSize: 14),
         decoration: InputDecoration(
           hintText: widget.hint,
-          hintStyle: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 14),
+          hintStyle:
+              TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 14),
           prefixIcon: const Icon(Icons.search, color: Colors.white70, size: 18),
           suffixIcon: _controller.text.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white70, size: 16),
+                  icon:
+                      const Icon(Icons.close, color: Colors.white70, size: 16),
                   onPressed: () {
                     _controller.clear();
                     widget.onClear?.call();
@@ -231,8 +233,8 @@ class ForecastRow extends StatelessWidget {
         border: !isLast
             ? Border(
                 bottom: BorderSide(
-                  color: Colors.white.withOpacity(0.1),
-                ))
+                color: Colors.white.withOpacity(0.1),
+              ))
             : null,
       ),
       child: Row(
@@ -372,7 +374,7 @@ class AlertCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         alert.location,
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: AtmosTheme.textSecondary,
                           fontSize: 11,
                         ),
@@ -391,7 +393,7 @@ class AlertCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     alert.description,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: AtmosTheme.textSecondary,
                       fontSize: 12,
                       height: 1.4,
@@ -451,7 +453,7 @@ class ReminderCard extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   reminder['body'] ?? '',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: AtmosTheme.textSecondary,
                     fontSize: 12,
                     height: 1.4,
@@ -517,11 +519,12 @@ class WeatherErrorWidget extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.cloud_off_rounded, color: Colors.white70, size: 60),
+            const Icon(Icons.cloud_off_rounded,
+                color: Colors.white70, size: 60),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Unable to Load Weather',
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -530,7 +533,8 @@ class WeatherErrorWidget extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               message,
-              style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
+              style:
+                  TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),

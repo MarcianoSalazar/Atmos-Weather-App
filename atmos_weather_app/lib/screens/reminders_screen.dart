@@ -36,8 +36,8 @@ class RemindersScreen extends StatelessWidget {
                 color: Color(0xFFE53935),
               ),
               const SizedBox(height: 10),
-              _PrepChecklist(
-                items: const [
+              const _PrepChecklist(
+                items: [
                   'Charge all devices and power banks',
                   'Prepare emergency go-bag',
                   'Stock food and clean water (3-day supply)',
@@ -55,8 +55,8 @@ class RemindersScreen extends StatelessWidget {
                 color: Color(0xFF1565C0),
               ),
               const SizedBox(height: 10),
-              _HotlineCard(
-                hotlines: const [
+              const _HotlineCard(
+                hotlines: [
                   {'label': 'Disaster Risk Reduction', 'number': '8-BAGYO'},
                   {'label': 'Ambulance (Red Cross)', 'number': '143'},
                   {'label': 'Police', 'number': '117'},
@@ -72,8 +72,8 @@ class RemindersScreen extends StatelessWidget {
                 color: Color(0xFF2E7D32),
               ),
               const SizedBox(height: 10),
-              _EvacuationCard(
-                tips: const [
+              const _EvacuationCard(
+                tips: [
                   'Stay calm, follow alerts and proceed to the nearest evacuation center',
                   'Bring your emergency kit and important documents',
                   'Assist children, elderly, and pets during evacuation',
@@ -168,8 +168,7 @@ class _PrepChecklistState extends State<_PrepChecklist> {
             onTap: () => setState(() => _checked[i] = !_checked[i]),
             borderRadius: BorderRadius.circular(16),
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
                   AnimatedContainer(
@@ -202,9 +201,8 @@ class _PrepChecklistState extends State<_PrepChecklist> {
                             ? AtmosTheme.textLight
                             : AtmosTheme.textPrimary,
                         fontSize: 13,
-                        decoration: _checked[i]
-                            ? TextDecoration.lineThrough
-                            : null,
+                        decoration:
+                            _checked[i] ? TextDecoration.lineThrough : null,
                       ),
                     ),
                   ),
@@ -243,9 +241,8 @@ class _HotlineCard extends StatelessWidget {
           return Container(
             decoration: BoxDecoration(
               border: !isLast
-                  ? Border(
-                      bottom:
-                          BorderSide(color: AtmosTheme.divider, width: 1))
+                  ? const Border(
+                      bottom: BorderSide(color: AtmosTheme.divider, width: 1))
                   : null,
             ),
             child: ListTile(
@@ -368,8 +365,7 @@ class _PowerOutageKit extends StatelessWidget {
         children: items.map((item) {
           return Container(
             width: (MediaQuery.of(context).size.width - 88) / 3,
-            padding:
-                const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
             decoration: BoxDecoration(
               color: const Color(0xFFFFF3E0),
               borderRadius: BorderRadius.circular(10),
@@ -377,8 +373,7 @@ class _PowerOutageKit extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(item['icon']!,
-                    style: const TextStyle(fontSize: 22)),
+                Text(item['icon']!, style: const TextStyle(fontSize: 22)),
                 const SizedBox(height: 4),
                 Text(
                   item['label']!,
