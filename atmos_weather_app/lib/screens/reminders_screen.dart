@@ -182,14 +182,15 @@ class _PrepChecklistState extends State<_PrepChecklist> {
                       border: Border.all(
                         color: _checked[i]
                             ? AtmosTheme.primaryBlue
-                            : AtmosTheme.textLight,
+                            : const Color.fromARGB(255, 0, 0, 0),
                         width: 2,
                       ),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: _checked[i]
                         ? const Icon(Icons.check_rounded,
-                            color: Colors.white, size: 14)
+                            color: Colors.white, size: 15)
+
                         : null,
                   ),
                   const SizedBox(width: 12),
@@ -343,7 +344,7 @@ class _PowerOutageKit extends StatelessWidget {
       {'icon': '🔦', 'label': 'Flashlight'},
       {'icon': '📻', 'label': 'Portable Radio'},
       {'icon': '🔌', 'label': 'Powerbank'},
-      {'icon': '💊', 'label': 'First Aid Kit'},
+      {'icon': '💊', 'label': 'First Aid'},
       {'icon': '🕯️', 'label': 'Candles'},
     ];
 
@@ -373,7 +374,7 @@ class _PowerOutageKit extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(item['icon']!, style: const TextStyle(fontSize: 22)),
+                Text(item['icon']!, style: const TextStyle(fontSize: 30)),
                 const SizedBox(height: 4),
                 Text(
                   item['label']!,
