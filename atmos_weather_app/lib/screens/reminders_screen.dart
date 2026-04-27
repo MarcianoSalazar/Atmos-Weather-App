@@ -374,7 +374,7 @@ class _PowerOutageKit extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(item['icon']!, style: const TextStyle(fontSize: 30)),
+                Text(item['icon']!, style: const TextStyle(fontSize: 22)),
                 const SizedBox(height: 4),
                 Text(
                   item['label']!,
