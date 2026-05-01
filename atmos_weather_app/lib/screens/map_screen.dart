@@ -401,11 +401,6 @@ class _MapScreenState extends State<MapScreen> {
                                 _mapController.move(point, 12.0);
                                 _fetchWeatherAtPoint(point);
 
-                                // Also load weather in provider (updates Home)
-                                provider.loadWeatherByCity(
-                                  name.split(',').first.trim(),
-                                );
-
                                 // Close results
                                 _searchCtrl.clear();
                                 setState(() {

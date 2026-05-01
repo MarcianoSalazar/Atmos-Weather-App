@@ -93,6 +93,9 @@ class WeatherIconWidget extends StatelessWidget {
       imageUrl: WeatherUtils.getWeatherIconUrl(iconCode),
       width: size,
       height: size,
+      fadeInDuration: const Duration(milliseconds: 250),
+      fadeInCurve: Curves.easeOut,
+      filterQuality: FilterQuality.high,
       placeholder: (_, __) => Icon(
         Icons.wb_cloudy_rounded,
         size: size * 0.8,
