@@ -43,7 +43,7 @@ class AtmosTheme {
         ),
         cardTheme: CardThemeData(
           elevation: 4,
-          shadowColor: primaryBlue.withOpacity(0.15),
+          shadowColor: primaryBlue.withAlpha(38),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -67,7 +67,7 @@ class AtmosTheme {
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: Colors.white.withOpacity(0.2),
+          fillColor: const Color(0xFFFFFFFF).withAlpha(51),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
@@ -89,8 +89,8 @@ class AtmosTheme {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          primaryBlue.withOpacity(0.8),
-          accentBlue.withOpacity(0.6),
+          primaryBlue.withAlpha(204),
+          accentBlue.withAlpha(153),
         ],
       );
 

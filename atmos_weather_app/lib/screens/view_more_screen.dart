@@ -32,7 +32,7 @@ class ViewMoreScreen extends StatelessWidget {
                           child: Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
+                              color: const Color(0xFFFFFFFF).withAlpha(51),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: const Icon(Icons.arrow_back_ios_rounded,
@@ -65,10 +65,10 @@ class ViewMoreScreen extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.12),
+                              color: const Color(0xFFFFFFFF).withAlpha(31),
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                  color: Colors.white.withOpacity(0.2)),
+                                  color: const Color(0xFFFFFFFF).withAlpha(51)),
                             ),
                             child: Column(
                               children: [
@@ -183,10 +183,10 @@ class ViewMoreScreen extends StatelessWidget {
                           const SizedBox(height: 10),
                           Container(
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.12),
+                              color: const Color(0xFFFFFFFF).withAlpha(31),
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                  color: Colors.white.withOpacity(0.2)),
+                                  color: const Color(0xFFFFFFFF).withAlpha(51)),
                             ),
                             child: Column(
                               children: provider.forecast
@@ -256,7 +256,7 @@ class _MetricItem extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.65),
+              color: const Color(0xFFFFFFFF).withAlpha(166),
               fontSize: 10,
             ),
           ),
@@ -276,9 +276,9 @@ class _ReminderToday extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: const Color(0xFFFFFFFF).withAlpha(38),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: const Color(0xFFFFFFFF).withAlpha(51)),
       ),
       child: Row(
         children: [
@@ -300,7 +300,7 @@ class _ReminderToday extends StatelessWidget {
                 Text(
                   reminder['body'] ?? '',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.75),
+                    color: const Color(0xFFFFFFFF).withAlpha(191),
                     fontSize: 11,
                     height: 1.4,
                   ),
@@ -331,9 +331,9 @@ class _HighlightCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: const Color(0xFFFFFFFF).withAlpha(38),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: const Color(0xFFFFFFFF).withAlpha(51)),
       ),
       child: Column(
         children: [
@@ -363,7 +363,7 @@ class _HighlightCard extends StatelessWidget {
           Text(
             WeatherUtils.getDayName(day.date),
             style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
+              color: const Color(0xFFFFFFFF).withAlpha(179),
               fontSize: 11,
             ),
           ),

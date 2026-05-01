@@ -66,7 +66,7 @@ class _SearchScreenState extends State<SearchScreen> {
                           border: Border.all(color: Colors.white, width: 2),
                           boxShadow: [
                             BoxShadow(
-                              color: AtmosTheme.primaryBlue.withOpacity(0.5),
+                              color: AtmosTheme.primaryBlue.withAlpha(128),
                               blurRadius: 8,
                             ),
                           ],
@@ -91,7 +91,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.black.withOpacity(0.6),
+                        const Color(0xFF000000).withAlpha(153),
                         Colors.transparent,
                       ],
                     ),
@@ -102,9 +102,11 @@ class _SearchScreenState extends State<SearchScreen> {
                     decoration: InputDecoration(
                       hintText: 'Search city or location...',
                       hintStyle: TextStyle(
-                          color: Colors.white.withOpacity(0.7), fontSize: 14),
+                        color: const Color(0xFFFFFFFF).withAlpha(179),
+                        fontSize: 14,
+                      ),
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.2),
+                      fillColor: const Color(0xFFFFFFFF).withAlpha(51),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -142,7 +144,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
+                            color: const Color(0xFF000000).withAlpha(38),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),

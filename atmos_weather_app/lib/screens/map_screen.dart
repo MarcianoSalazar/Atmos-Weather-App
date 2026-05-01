@@ -295,7 +295,7 @@ class _MapScreenState extends State<MapScreen> {
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.18),
+                          color: const Color(0xFF000000).withAlpha(46),
                           blurRadius: 10,
                           offset: const Offset(0, 2),
                         ),
@@ -364,7 +364,7 @@ class _MapScreenState extends State<MapScreen> {
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.12),
+                            color: const Color(0xFF000000).withAlpha(31),
                             blurRadius: 12,
                             offset: const Offset(0, 3),
                           ),
@@ -510,7 +510,7 @@ class _MapScreenState extends State<MapScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.55),
+                        color: const Color(0xFF000000).withAlpha(140),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Text(
@@ -572,8 +572,12 @@ class _GpsMarkerState extends State<_GpsMarker>
             height: 46 * _anim.value,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AtmosTheme.primaryBlue
-                  .withOpacity(0.25 * (1 - _anim.value + 0.3)),
+              color: AtmosTheme.primaryBlue.withAlpha(
+                (255 * (0.25 * (1 - _anim.value + 0.3)))
+                    .round()
+                    .clamp(0, 255)
+                    .toInt(),
+              ),
             ),
           ),
           // Inner solid dot
@@ -586,7 +590,7 @@ class _GpsMarkerState extends State<_GpsMarker>
               border: Border.all(color: Colors.white, width: 3),
               boxShadow: [
                 BoxShadow(
-                  color: AtmosTheme.primaryBlue.withOpacity(0.5),
+                  color: AtmosTheme.primaryBlue.withAlpha(128),
                   blurRadius: 6,
                 ),
               ],
@@ -616,11 +620,11 @@ class _WeatherMarker extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: AtmosTheme.deepBlue.withOpacity(0.92),
+            color: AtmosTheme.deepBlue.withAlpha(235),
             borderRadius: BorderRadius.circular(10),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
+                color: const Color(0xFF000000).withAlpha(77),
                 blurRadius: 8,
               ),
             ],
@@ -672,8 +676,7 @@ class _WeatherMarker extends StatelessWidget {
         // Pointer arrow
         CustomPaint(
           size: const Size(12, 7),
-          painter:
-              _TrianglePainter(color: AtmosTheme.deepBlue.withOpacity(0.92)),
+          painter: _TrianglePainter(color: AtmosTheme.deepBlue.withAlpha(235)),
         ),
       ],
     );
@@ -750,7 +753,7 @@ class _SearchResultTile extends StatelessWidget {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: AtmosTheme.lightBlue.withOpacity(0.5),
+                color: AtmosTheme.lightBlue.withAlpha(128),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -821,11 +824,11 @@ class _LayerPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.93),
+        color: const Color(0xFFFFFFFF).withAlpha(237),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: const Color(0xFF000000).withAlpha(38),
             blurRadius: 8,
           ),
         ],
@@ -892,7 +895,7 @@ class _LayerToggle extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: active
-              ? AtmosTheme.primaryBlue.withOpacity(0.12)
+              ? AtmosTheme.primaryBlue.withAlpha(31)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(7),
           border: Border.all(
@@ -946,7 +949,7 @@ class _TappedWeatherCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: const Color(0xFF000000).withAlpha(38),
             blurRadius: 14,
             offset: const Offset(0, 4),
           ),
@@ -1071,7 +1074,7 @@ class _WeatherChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: AtmosTheme.lightBlue.withOpacity(0.4),
+        color: AtmosTheme.lightBlue.withAlpha(102),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
@@ -1117,7 +1120,7 @@ class _MapIconBtn extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.15),
+                color: const Color(0xFF000000).withAlpha(38),
                 blurRadius: 6,
                 offset: const Offset(0, 2),
               ),

@@ -78,17 +78,17 @@ class _BackdropOrbs extends StatelessWidget {
         Positioned(
           top: -80,
           left: -60,
-          child: _GlowOrb(color: palette.accent.withOpacity(0.25), size: 220),
+          child: _GlowOrb(color: palette.accent.withAlpha(64), size: 220),
         ),
         Positioned(
           top: 120,
           right: -70,
-          child: _GlowOrb(color: palette.highlight.withOpacity(0.2), size: 200),
+          child: _GlowOrb(color: palette.highlight.withAlpha(51), size: 200),
         ),
         Positioned(
           bottom: -90,
           left: -40,
-          child: _GlowOrb(color: palette.base.withOpacity(0.2), size: 240),
+          child: _GlowOrb(color: palette.base.withAlpha(51), size: 240),
         ),
       ],
     );
@@ -129,7 +129,7 @@ class _HomeBody extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: provider.refresh,
       color: Colors.white,
-      backgroundColor: Colors.black.withOpacity(0.2),
+      backgroundColor: const Color(0xFF000000).withAlpha(51),
       displacement: 16,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -138,8 +138,16 @@ class _HomeBody extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _TopBar(dateLabel: dateLabel),
-              const SizedBox(height: 14),
+              Text(
+                dateLabel,
+                style: GoogleFonts.montserrat(
+                  color: const Color(0xFFFFFFFF).withAlpha(191),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              const SizedBox(height: 12),
               _HeroCard(weather: weather),
               const SizedBox(height: 18),
               _SectionTitle(title: 'Today', subtitle: 'Quick metrics'),
@@ -181,58 +189,6 @@ class _HomeBody extends StatelessWidget {
   }
 }
 
-class _TopBar extends StatelessWidget {
-  final String dateLabel;
-  const _TopBar({required this.dateLabel});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'ATMOS',
-              style: GoogleFonts.montserrat(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 2,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              dateLabel,
-              style: GoogleFonts.montserrat(
-                color: Colors.white.withOpacity(0.7),
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.18),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.25)),
-          ),
-          child: Text(
-            'Live',
-            style: GoogleFonts.montserrat(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _HeroCard extends StatelessWidget {
   final dynamic weather;
   const _HeroCard({required this.weather});
@@ -242,9 +198,9 @@ class _HeroCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.16),
+        color: const Color(0xFFFFFFFF).withAlpha(41),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withOpacity(0.22)),
+        border: Border.all(color: const Color(0xFFFFFFFF).withAlpha(56)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -310,7 +266,7 @@ class _HeroCard extends StatelessWidget {
                     Text(
                       weather.comfortLevel,
                       style: GoogleFonts.montserrat(
-                        color: Colors.white.withOpacity(0.75),
+                        color: const Color(0xFFFFFFFF).withAlpha(191),
                         fontSize: 12,
                       ),
                     ),
@@ -338,9 +294,9 @@ class _HeroIcon extends StatelessWidget {
       width: 74,
       height: 74,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
+        color: const Color(0xFFFFFFFF).withAlpha(51),
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.4)),
+        border: Border.all(color: const Color(0xFFFFFFFF).withAlpha(102)),
       ),
       child: Center(
         child: WeatherIconWidget(iconCode: iconCode, size: 48),
@@ -396,9 +352,9 @@ class _MetricChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.14),
+          color: const Color(0xFFFFFFFF).withAlpha(36),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.25)),
+          border: Border.all(color: const Color(0xFFFFFFFF).withAlpha(64)),
         ),
         child: Row(
           children: [
@@ -411,7 +367,7 @@ class _MetricChip extends StatelessWidget {
                   Text(
                     label,
                     style: GoogleFonts.montserrat(
-                      color: Colors.white.withOpacity(0.7),
+                      color: const Color(0xFFFFFFFF).withAlpha(179),
                       fontSize: 10,
                     ),
                   ),
@@ -454,7 +410,7 @@ class _SectionTitle extends StatelessWidget {
         Text(
           subtitle,
           style: GoogleFonts.montserrat(
-            color: Colors.white.withOpacity(0.65),
+            color: const Color(0xFFFFFFFF).withAlpha(166),
             fontSize: 12,
           ),
         ),
@@ -471,9 +427,9 @@ class _ForecastTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
+        color: const Color(0xFFFFFFFF).withAlpha(31),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: const Color(0xFFFFFFFF).withAlpha(51)),
       ),
       child: Column(
         children: [
@@ -516,9 +472,9 @@ class _ExtendedForecast extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.12),
+            color: const Color(0xFFFFFFFF).withAlpha(31),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
+            border: Border.all(color: const Color(0xFFFFFFFF).withAlpha(51)),
           ),
           child: Column(
             children: [
@@ -603,9 +559,9 @@ class _ExtendedForecast extends StatelessWidget {
         const SizedBox(height: 10),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.12),
+            color: const Color(0xFFFFFFFF).withAlpha(31),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
+            border: Border.all(color: const Color(0xFFFFFFFF).withAlpha(51)),
           ),
           child: Column(
             children: provider.forecast.asMap().entries.map(
@@ -662,7 +618,7 @@ class _MetricItem extends StatelessWidget {
           Text(
             label,
             style: GoogleFonts.montserrat(
-              color: Colors.white.withOpacity(0.65),
+              color: const Color(0xFFFFFFFF).withAlpha(166),
               fontSize: 10,
             ),
           ),
@@ -682,9 +638,9 @@ class _ReminderToday extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: const Color(0xFFFFFFFF).withAlpha(38),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: const Color(0xFFFFFFFF).withAlpha(51)),
       ),
       child: Row(
         children: [
@@ -706,7 +662,7 @@ class _ReminderToday extends StatelessWidget {
                 Text(
                   reminder['body'] ?? '',
                   style: GoogleFonts.montserrat(
-                    color: Colors.white.withOpacity(0.75),
+                    color: const Color(0xFFFFFFFF).withAlpha(191),
                     fontSize: 11,
                     height: 1.4,
                   ),
@@ -737,9 +693,9 @@ class _HighlightCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: const Color(0xFFFFFFFF).withAlpha(38),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: const Color(0xFFFFFFFF).withAlpha(51)),
       ),
       child: Column(
         children: [
@@ -769,7 +725,7 @@ class _HighlightCard extends StatelessWidget {
           Text(
             WeatherUtils.getDayName(day.date),
             style: GoogleFonts.montserrat(
-              color: Colors.white.withOpacity(0.7),
+              color: const Color(0xFFFFFFFF).withAlpha(179),
               fontSize: 11,
             ),
           ),
@@ -796,7 +752,7 @@ class _ForecastTableRow extends StatelessWidget {
         border: !isLast
             ? Border(
                 bottom: BorderSide(
-                color: Colors.white.withOpacity(0.1),
+                color: const Color(0xFFFFFFFF).withAlpha(26),
               ))
             : null,
       ),
@@ -808,7 +764,7 @@ class _ForecastTableRow extends StatelessWidget {
             child: Text(
               dateFmt,
               style: GoogleFonts.montserrat(
-                color: Colors.white.withOpacity(0.75),
+                color: const Color(0xFFFFFFFF).withAlpha(191),
                 fontSize: 13,
               ),
             ),
@@ -844,7 +800,7 @@ class _ForecastTableRow extends StatelessWidget {
             child: Text(
               '${day.tempMin.round()}',
               style: GoogleFonts.montserrat(
-                color: Colors.white.withOpacity(0.65),
+                color: const Color(0xFFFFFFFF).withAlpha(166),
                 fontSize: 13,
               ),
               textAlign: TextAlign.end,
