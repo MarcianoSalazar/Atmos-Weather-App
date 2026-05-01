@@ -39,9 +39,9 @@ class _AtmosSearchBarState extends State<AtmosSearchBar> {
     return Container(
       height: 44,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
+        color: const Color(0xFFFFFFFF).withAlpha(51),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.3)),
+        border: Border.all(color: const Color(0xFFFFFFFF).withAlpha(77)),
       ),
       child: TextField(
         controller: _controller,
@@ -49,8 +49,10 @@ class _AtmosSearchBarState extends State<AtmosSearchBar> {
         style: const TextStyle(color: Colors.white, fontSize: 14),
         decoration: InputDecoration(
           hintText: widget.hint,
-          hintStyle:
-              TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 14),
+          hintStyle: TextStyle(
+            color: const Color(0xFFFFFFFF).withAlpha(179),
+            fontSize: 14,
+          ),
           prefixIcon: const Icon(Icons.search, color: Colors.white70, size: 18),
           suffixIcon: _controller.text.isNotEmpty
               ? IconButton(
@@ -93,6 +95,9 @@ class WeatherIconWidget extends StatelessWidget {
       imageUrl: WeatherUtils.getWeatherIconUrl(iconCode),
       width: size,
       height: size,
+      fadeInDuration: const Duration(milliseconds: 250),
+      fadeInCurve: Curves.easeOut,
+      filterQuality: FilterQuality.high,
       placeholder: (_, __) => Icon(
         Icons.wb_cloudy_rounded,
         size: size * 0.8,
@@ -126,9 +131,9 @@ class MetricCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: const Color(0xFFFFFFFF).withAlpha(38),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: const Color(0xFFFFFFFF).withAlpha(51)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -147,7 +152,7 @@ class MetricCard extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
+              color: const Color(0xFFFFFFFF).withAlpha(179),
               fontSize: 10,
             ),
             textAlign: TextAlign.center,
@@ -177,11 +182,12 @@ class HourlyForecastItem extends StatelessWidget {
       margin: const EdgeInsets.only(right: 8),
       decoration: BoxDecoration(
         color: isNow
-            ? Colors.white.withOpacity(0.3)
-            : Colors.white.withOpacity(0.12),
+            ? const Color(0xFFFFFFFF).withAlpha(77)
+            : const Color(0xFFFFFFFF).withAlpha(31),
         borderRadius: BorderRadius.circular(12),
         border: isNow
-            ? Border.all(color: Colors.white.withOpacity(0.6), width: 1.5)
+            ? Border.all(
+                color: const Color(0xFFFFFFFF).withAlpha(153), width: 1.5)
             : null,
       ),
       child: Column(
@@ -190,7 +196,7 @@ class HourlyForecastItem extends StatelessWidget {
           Text(
             isNow ? 'Now' : WeatherUtils.formatHour(hourly.time),
             style: TextStyle(
-              color: Colors.white.withOpacity(0.85),
+              color: const Color(0xFFFFFFFF).withAlpha(217),
               fontSize: 10,
               fontWeight: isNow ? FontWeight.bold : FontWeight.normal,
             ),
@@ -233,7 +239,7 @@ class ForecastRow extends StatelessWidget {
         border: !isLast
             ? Border(
                 bottom: BorderSide(
-                color: Colors.white.withOpacity(0.1),
+                color: const Color(0xFFFFFFFF).withAlpha(26),
               ))
             : null,
       ),
@@ -264,7 +270,7 @@ class ForecastRow extends StatelessWidget {
           Text(
             WeatherUtils.formatTemp(day.tempMin),
             style: TextStyle(
-              color: Colors.white.withOpacity(0.6),
+              color: const Color(0xFFFFFFFF).withAlpha(153),
               fontSize: 14,
             ),
           ),
@@ -327,7 +333,7 @@ class AlertCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.15),
+            color: color.withAlpha(38),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -342,7 +348,7 @@ class AlertCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withAlpha(26),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: color, size: 22),
@@ -425,7 +431,7 @@ class ReminderCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: AtmosTheme.primaryBlue.withOpacity(0.08),
+            color: AtmosTheme.primaryBlue.withAlpha(20),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -490,7 +496,7 @@ class WeatherLoadingWidget extends StatelessWidget {
           Text(
             'Loading weather data...',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
+              color: const Color(0xFFFFFFFF).withAlpha(204),
               fontSize: 14,
             ),
           ),
@@ -533,8 +539,10 @@ class WeatherErrorWidget extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               message,
-              style:
-                  TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
+              style: TextStyle(
+                color: const Color(0xFFFFFFFF).withAlpha(179),
+                fontSize: 13,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),

@@ -120,10 +120,12 @@ class _AtmosSplashState extends State<AtmosSplash>
                       width: 90,
                       height: 90,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: const Color(0xFFFFFFFF).withAlpha(51),
                         borderRadius: BorderRadius.circular(24),
                         border: Border.all(
-                            color: Colors.white.withOpacity(0.4), width: 2),
+                          color: const Color(0xFFFFFFFF).withAlpha(102),
+                          width: 2,
+                        ),
                       ),
                       child: const Icon(
                         Icons.cloud_queue_rounded,
@@ -145,7 +147,7 @@ class _AtmosSplashState extends State<AtmosSplash>
                     Text(
                       'Modern Weather Intelligence',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
+                        color: const Color(0xFFFFFFFF).withAlpha(204),
                         fontSize: 13,
                         letterSpacing: 1,
                       ),
@@ -155,7 +157,7 @@ class _AtmosSplashState extends State<AtmosSplash>
                       width: 32,
                       height: 32,
                       child: CircularProgressIndicator(
-                        color: Colors.white.withOpacity(0.7),
+                        color: const Color(0xFFFFFFFF).withAlpha(179),
                         strokeWidth: 2,
                       ),
                     ),
