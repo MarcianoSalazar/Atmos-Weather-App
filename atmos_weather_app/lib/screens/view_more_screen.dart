@@ -189,14 +189,18 @@ class ViewMoreScreen extends StatelessWidget {
                                   color: Colors.white.withOpacity(0.2)),
                             ),
                             child: Column(
-                              children: provider.forecast.asMap().entries.map(
-                                (e) => ForecastRow(
-                                  day: e.value,
-                                  isFirst: e.key == 0,
-                                  isLast:
-                                      e.key == provider.forecast.length - 1,
-                                ),
-                              ).toList(),
+                              children: provider.forecast
+                                  .asMap()
+                                  .entries
+                                  .map(
+                                    (e) => ForecastRow(
+                                      day: e.value,
+                                      isFirst: e.key == 0,
+                                      isLast:
+                                          e.key == provider.forecast.length - 1,
+                                    ),
+                                  )
+                                  .toList(),
                             ),
                           ),
                           const SizedBox(height: 24),
@@ -278,8 +282,7 @@ class _ReminderToday extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(reminder['icon'] ?? '📌',
-              style: const TextStyle(fontSize: 22)),
+          Text(reminder['icon'] ?? '📌', style: const TextStyle(fontSize: 22)),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -350,9 +353,7 @@ class _HighlightCard extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            isHot
-                ? '${day.tempMax.round()}°C'
-                : '${day.tempMin.round()}°C',
+            isHot ? '${day.tempMax.round()}°C' : '${day.tempMin.round()}°C',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 20,

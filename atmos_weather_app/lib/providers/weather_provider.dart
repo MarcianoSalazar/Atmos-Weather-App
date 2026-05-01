@@ -80,6 +80,22 @@ class WeatherProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> loadWeatherByCoords(double lat, double lon) async {
+    _status = WeatherStatus.loading;
+    _errorMessage = '';
+    notifyListeners();
+
+    try {
+      _currentLat = lat;
+      _currentLon = lon;
+      await _fetchAllWeatherData(lat, lon);
+    } catch (e) {
+      _status = WeatherStatus.error;
+      _errorMessage = e.toString();
+      notifyListeners();
+    }
+  }
+
   Future<void> _fetchAllWeatherData(double lat, double lon,
       {WeatherData? preloadedWeather}) async {
     try {
@@ -89,9 +105,11 @@ class WeatherProvider extends ChangeNotifier {
             : _weatherService.getCurrentWeatherByCoords(lat, lon),
         _weatherService.getForecastByCoords(lat, lon),
         _weatherService.getHourlyForecast(lat, lon),
+        _weatherService.getUvIndex(lat, lon),
       ]);
 
-      _currentWeather = results[0] as WeatherData;
+      final uvIndex = results[3] as int;
+      _currentWeather = (results[0] as WeatherData).copyWith(uvIndex: uvIndex);
       _forecast = results[1] as List<ForecastDay>;
       _hourlyForecast = results[2] as List<HourlyForecast>;
       _alerts = _weatherService.getPhilippinesAlerts();
@@ -155,7 +173,8 @@ class WeatherProvider extends ChangeNotifier {
       reminders.add({
         'icon': '☀️',
         'title': 'Hot weather today',
-        'body': 'Dress in light clothing to stay comfortable throughout the day.',
+        'body':
+            'Dress in light clothing to stay comfortable throughout the day.',
       });
     }
     if (cond.contains('rain') || cond.contains('drizzle')) {
@@ -169,13 +188,15 @@ class WeatherProvider extends ChangeNotifier {
       reminders.add({
         'icon': '⛈️',
         'title': 'Thunderstorm warning',
-        'body': 'Stay indoors if possible. Avoid open areas and tall structures.',
+        'body':
+            'Stay indoors if possible. Avoid open areas and tall structures.',
       });
     }
     reminders.add({
       'icon': '💧',
       'title': 'Stay hydrated',
-      'body': 'Carry a water bottle to keep yourself hydrated throughout the day.',
+      'body':
+          'Carry a water bottle to keep yourself hydrated throughout the day.',
     });
     if (cond.contains('clear') || cond.contains('sun')) {
       reminders.add({
