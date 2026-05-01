@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../theme/app_theme.dart';
 import '../utils/weather_utils.dart';
 import '../models/weather_model.dart';
@@ -88,20 +89,16 @@ class WeatherIconWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Image.network(
-      WeatherUtils.getWeatherIconUrl(iconCode),
+    return CachedNetworkImage(
+      imageUrl: WeatherUtils.getWeatherIconUrl(iconCode),
       width: size,
       height: size,
-      fit: BoxFit.contain,
-      loadingBuilder: (_, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return Icon(
-          Icons.wb_cloudy_rounded,
-          size: size * 0.8,
-          color: Colors.white,
-        );
-      },
-      errorBuilder: (_, __, ___) => Text(
+      placeholder: (_, __) => Icon(
+        Icons.wb_cloudy_rounded,
+        size: size * 0.8,
+        color: Colors.white,
+      ),
+      errorWidget: (_, __, ___) => Text(
         WeatherUtils.getWeatherEmoji(iconCode),
         style: TextStyle(fontSize: size * 0.7),
       ),

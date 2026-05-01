@@ -75,6 +75,32 @@ class WeatherData {
     if (temperature >= 15) return 'Cool';
     return 'Cold';
   }
+
+  WeatherData copyWith({
+    int? uvIndex,
+  }) {
+    return WeatherData(
+      cityName: cityName,
+      country: country,
+      temperature: temperature,
+      feelsLike: feelsLike,
+      tempMin: tempMin,
+      tempMax: tempMax,
+      description: description,
+      mainCondition: mainCondition,
+      iconCode: iconCode,
+      humidity: humidity,
+      windSpeed: windSpeed,
+      pressure: pressure,
+      visibility: visibility,
+      uvIndex: uvIndex ?? this.uvIndex,
+      lat: lat,
+      lon: lon,
+      sunrise: sunrise,
+      sunset: sunset,
+      timestamp: timestamp,
+    );
+  }
 }
 
 class ForecastDay {

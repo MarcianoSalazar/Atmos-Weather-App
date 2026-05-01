@@ -6,6 +6,7 @@ class WeatherService {
   // Replace with your OpenWeatherMap API key
   // Get free key at: https://openweathermap.org/api
   static const String _apiKey = 'e8a83f5133b0cbac5b85eb65a806fdab';
+  static const String apiKey = _apiKey;
   static const String _baseUrl = 'https://api.openweathermap.org/data/2.5';
   static const String _geoUrl = 'https://api.openweathermap.org/geo/1.0';
 
@@ -169,6 +170,25 @@ class WeatherService {
     } catch (_) {
       return [];
     }
+  }
+
+  Future<int> getUvIndex(double lat, double lon) async {
+    final url = '$_baseUrl/uvi?lat=$lat&lon=$lon&appid=$_apiKey';
+    try {
+      final response = await http.get(Uri.parse(url)).timeout(
+            const Duration(seconds: 10),
+          );
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        final value = json['value'];
+        if (value is num) {
+          return value.round();
+        }
+      }
+    } catch (_) {
+      // Ignore errors and fallback to 0
+    }
+    return 0;
   }
 
   // Search cities
