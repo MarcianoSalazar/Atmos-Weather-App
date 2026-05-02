@@ -178,7 +178,7 @@ class WeatherRepository {
                 lon: (e['longitude'] as num).toDouble(),
                 country: e['country'] as String? ?? '',
                 state: e['admin1'] as String?,
-              ))
+              ),)
           .toList();
 
       return results;
@@ -345,7 +345,7 @@ class WeatherRepository {
 
   // Get weather for multiple saved locations
   Future<Map<String, OpenMeteoModel>> fetchMultipleLocations(
-      List<SavedLocation> locations) async {
+      List<SavedLocation> locations,) async {
     final Map<String, OpenMeteoModel> results = {};
     for (final loc in locations) {
       try {
@@ -476,7 +476,7 @@ class WeatherRepository {
 
   Future<void> saveSettings(AppSettings settings) async {
     await _prefs.setString(
-        AppConstants.settingsKey, jsonEncode(settings.toJson()));
+        AppConstants.settingsKey, jsonEncode(settings.toJson()),);
   }
 
   // Cache helpers
@@ -485,7 +485,7 @@ class WeatherRepository {
     if (stored == null) return null;
     try {
       return OpenMeteoModel.fromJson(
-          jsonDecode(stored) as Map<String, dynamic>);
+          jsonDecode(stored) as Map<String, dynamic>,);
     } catch (e) {
       return null;
     }

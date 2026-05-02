@@ -72,7 +72,6 @@ class AppColors {
   );
 
   static const LinearGradient tempGradient = LinearGradient(
-    begin: Alignment.centerLeft,
     end: Alignment.centerRight,
     colors: [Color(0xFFFFD600), Color(0xFFFF9800)],
   );
@@ -95,11 +94,8 @@ class AppTheme {
         primary: AppColors.primaryAccent,
         secondary: AppColors.tempYellow,
         surface: AppColors.surface,
-        background: AppColors.primaryDeep,
         onPrimary: AppColors.white,
         onSecondary: AppColors.primaryDeep,
-        onSurface: AppColors.white,
-        onBackground: AppColors.white,
         error: AppColors.alertRed,
       ),
       scaffoldBackgroundColor: AppColors.primaryDeep,
@@ -239,7 +235,7 @@ class AppTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: AppColors.white10, width: 1),
+          side: const BorderSide(color: AppColors.white10),
         ),
         margin: EdgeInsets.zero,
       ),

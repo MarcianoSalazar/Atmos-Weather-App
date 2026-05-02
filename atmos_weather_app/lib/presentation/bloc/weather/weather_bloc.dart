@@ -23,7 +23,7 @@ class FetchWeatherByCoords extends WeatherEvent {
   final double lon;
   final String? cityName;
   const FetchWeatherByCoords(
-      {required this.lat, required this.lon, this.cityName});
+      {required this.lat, required this.lon, this.cityName,});
   @override
   List<Object?> get props => [lat, lon, cityName];
 }
@@ -149,7 +149,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
   }
 
   Future<void> _onFetchByLocation(
-      FetchWeatherByLocation event, Emitter<WeatherState> emit) async {
+      FetchWeatherByLocation event, Emitter<WeatherState> emit,) async {
     emit(const WeatherLoading());
     try {
       final position = await _determinePosition();
@@ -170,7 +170,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
   }
 
   Future<void> _onFetchByCoords(
-      FetchWeatherByCoords event, Emitter<WeatherState> emit) async {
+      FetchWeatherByCoords event, Emitter<WeatherState> emit,) async {
     emit(const WeatherLoading());
     _currentLat = event.lat;
     _currentLon = event.lon;
@@ -182,7 +182,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
   }
 
   Future<void> _onRefresh(
-      RefreshWeather event, Emitter<WeatherState> emit) async {
+      RefreshWeather event, Emitter<WeatherState> emit,) async {
     if (_currentLat == null || _currentLon == null) {
       add(const FetchWeatherByLocation());
       return;
@@ -196,14 +196,14 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
         cityName: current.cityName,
         lat: current.lat,
         lon: current.lon,
-      ));
+      ),);
     }
 
     await _fetchAndEmit(emit);
   }
 
   Future<void> _onSearchCity(
-      SearchCity event, Emitter<WeatherState> emit) async {
+      SearchCity event, Emitter<WeatherState> emit,) async {
     if (event.query.trim().isEmpty) {
       emit(const WeatherInitial());
       return;
@@ -240,7 +240,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
         _repository.fetchOpenMeteoForecast(lat: lat, lon: lon),
         _repository.fetchAirQuality(lat: lat, lon: lon),
         _repository.searchLocations(
-            '${lat.toStringAsFixed(2)},${lon.toStringAsFixed(2)}'),
+            '${lat.toStringAsFixed(2)},${lon.toStringAsFixed(2)}',),
       ]);
 
       final weather = futures[0] as OpenMeteoModel;
@@ -293,7 +293,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
         lat: lat,
         lon: lon,
         lastUpdated: DateTime.now(),
-      ));
+      ),);
     } catch (e) {
       emit(WeatherError(message: e.toString()));
     }
@@ -317,7 +317,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
       throw Exception('Location permissions are permanently denied');
     }
 
-    return await Geolocator.getCurrentPosition(
+    return Geolocator.getCurrentPosition(
       desiredAccuracy: LocationAccuracy.medium,
       timeLimit: const Duration(seconds: 10),
     );
@@ -409,7 +409,7 @@ class _ResolvedLocation {
   const _ResolvedLocation(
       {required this.displayName,
       required this.countryCode,
-      required this.isGeneric});
+      required this.isGeneric,});
 }
 
 String _formatLatLon(double lat, double lon) {

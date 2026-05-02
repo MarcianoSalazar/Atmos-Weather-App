@@ -84,9 +84,9 @@ class HourlyForecastWidget extends StatelessWidget {
 
                   return _HourlyItem(
                     time: WeatherUtils.formatHour(time,
-                        use24h: settings.use24HourFormat),
+                        use24h: settings.use24HourFormat,),
                     temp: WeatherUtils.formatTempValue(temp,
-                        unit: settings.temperatureUnit),
+                        unit: settings.temperatureUnit,),
                     emoji: WeatherUtils.getWeatherIconAsset(code),
                     pop: pop,
                     isNow: isCurrentHour && i == 0,
@@ -163,7 +163,7 @@ class _HourlyItem extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(Icons.water_drop,
-                    size: 10, color: AppColors.primaryBright),
+                    size: 10, color: AppColors.primaryBright,),
                 const SizedBox(width: 2),
                 Text(
                   '${pop.round()}%',

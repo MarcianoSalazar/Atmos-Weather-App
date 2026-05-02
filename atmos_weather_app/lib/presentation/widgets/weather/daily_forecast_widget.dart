@@ -28,13 +28,13 @@ class DailyForecastWidget extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Row(
                 children: [
-                  const Icon(Icons.date_range_rounded, color: AppColors.white60, size: 16),
-                  const SizedBox(width: 6),
-                  const Text(
+                  Icon(Icons.date_range_rounded, color: AppColors.white60, size: 16),
+                  SizedBox(width: 6),
+                  Text(
                     '7-DAY FORECAST',
                     style: TextStyle(
                       fontFamily: 'Rajdhani',
@@ -89,7 +89,7 @@ class DailyForecastWidget extends StatelessWidget {
                   );
                 },
               );
-            }),
+            },),
           ],
         ),
       ),

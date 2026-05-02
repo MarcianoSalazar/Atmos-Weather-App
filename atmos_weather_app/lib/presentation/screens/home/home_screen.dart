@@ -96,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen>
                       lat: result.lat,
                       lon: result.lon,
                       cityName: result.name,
-                    ));
+                    ),);
               },
             ),
         ],
@@ -236,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen>
                       const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                            horizontal: 6, vertical: 2,),
                         decoration: BoxDecoration(
                           color: AppColors.white20,
                           borderRadius: BorderRadius.circular(4),
@@ -253,8 +253,8 @@ class _HomeScreenState extends State<HomeScreen>
                       ),
                     ],
                     if (isRefreshing)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8),
+                      const Padding(
+                        padding: EdgeInsets.only(left: 8),
                         child: SizedBox(
                           width: 12,
                           height: 12,
@@ -345,7 +345,7 @@ class _HomeScreenState extends State<HomeScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(Icons.cloud_off_rounded,
-                  color: AppColors.white60, size: 72),
+                  color: AppColors.white60, size: 72,),
               const SizedBox(height: 24),
               const Text(
                 'Unable to fetch weather',

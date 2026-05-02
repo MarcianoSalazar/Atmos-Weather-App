@@ -24,7 +24,7 @@ class _MapScreenState extends State<MapScreen> {
   MapLayer _selectedLayer = MapLayer.temperature;
   bool _showLayerPanel = false;
   double _opacity = 0.7;
-  LatLng _center = LatLng(14.5995, 120.9842);
+  LatLng _center = const LatLng(14.5995, 120.9842);
 
   final Map<MapLayer, Map<String, dynamic>> _layers = {
     MapLayer.temperature: {
@@ -195,13 +195,13 @@ class _MapScreenState extends State<MapScreen> {
               color: AppColors.primaryDark.withOpacity(0.9),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                  color: (layerData['color'] as Color).withOpacity(0.5)),
+                  color: (layerData['color'] as Color).withOpacity(0.5),),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(layerData['icon'] as IconData,
-                    color: layerData['color'] as Color, size: 18),
+                    color: layerData['color'] as Color, size: 18,),
                 const SizedBox(width: 8),
                 Text(
                   layerData['label'] as String,
@@ -228,12 +228,12 @@ class _MapScreenState extends State<MapScreen> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.white20),
               ),
-              child: Row(
+              child: const Row(
                 children: [
-                  const Icon(Icons.layers_rounded,
-                      color: AppColors.white, size: 18),
-                  const SizedBox(width: 6),
-                  const Text(
+                  Icon(Icons.layers_rounded,
+                      color: AppColors.white, size: 18,),
+                  SizedBox(width: 6),
+                  Text(
                     'Layers',
                     style: TextStyle(
                       fontFamily: 'Rajdhani',
@@ -278,16 +278,14 @@ class _MapScreenState extends State<MapScreen> {
                     ),
                   ),
                   SliderTheme(
-                    data: SliderThemeData(
+                    data: const SliderThemeData(
                       trackHeight: 3,
                       thumbShape:
-                          const RoundSliderThumbShape(enabledThumbRadius: 8),
+                          RoundSliderThumbShape(enabledThumbRadius: 8),
                     ),
                     child: Slider(
                       value: _opacity,
                       onChanged: (v) => setState(() => _opacity = v),
-                      min: 0,
-                      max: 1,
                     ),
                   ),
                 ],

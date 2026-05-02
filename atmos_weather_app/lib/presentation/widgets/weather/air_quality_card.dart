@@ -31,7 +31,7 @@ class AirQualityCard extends StatelessWidget {
             Row(
               children: [
                 const Icon(Icons.air_rounded,
-                    color: AppColors.white60, size: 16),
+                    color: AppColors.white60, size: 16,),
                 const SizedBox(width: 6),
                 const Text(
                   'AIR QUALITY',
@@ -69,7 +69,6 @@ class AirQualityCard extends StatelessWidget {
 
             // AQI Index with gauge
             Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
                   '$aqi',
@@ -85,9 +84,9 @@ class AirQualityCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         'European AQI',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'Rajdhani',
                           fontSize: 12,
                           color: AppColors.white60,
@@ -112,19 +111,19 @@ class AirQualityCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Row(
+                      const Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: const [
+                        children: [
                           Text('Good',
                               style: TextStyle(
                                   fontFamily: 'Rajdhani',
                                   fontSize: 10,
-                                  color: AppColors.white60)),
+                                  color: AppColors.white60,),),
                           Text('Extreme',
                               style: TextStyle(
                                   fontFamily: 'Rajdhani',
                                   fontSize: 10,
-                                  color: AppColors.white60)),
+                                  color: AppColors.white60,),),
                         ],
                       ),
                     ],
@@ -140,17 +139,17 @@ class AirQualityCard extends StatelessWidget {
               children: [
                 _PollutantItem(
                     label: 'PM2.5',
-                    value: '${airQuality.current.pm2_5.toStringAsFixed(1)}'),
+                    value: airQuality.current.pm2_5.toStringAsFixed(1),),
                 _PollutantItem(
                     label: 'PM10',
-                    value: '${airQuality.current.pm10.toStringAsFixed(1)}'),
+                    value: airQuality.current.pm10.toStringAsFixed(1),),
                 _PollutantItem(
                     label: 'O₃',
-                    value: '${airQuality.current.ozone.toStringAsFixed(1)}'),
+                    value: airQuality.current.ozone.toStringAsFixed(1),),
                 _PollutantItem(
                     label: 'NO₂',
                     value:
-                        '${airQuality.current.nitrogenDioxide.toStringAsFixed(1)}'),
+                        airQuality.current.nitrogenDioxide.toStringAsFixed(1),),
               ],
             ),
           ],

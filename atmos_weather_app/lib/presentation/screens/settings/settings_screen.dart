@@ -51,7 +51,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: _isLoading
               ? const Center(
                   child:
-                      CircularProgressIndicator(color: AppColors.primaryAccent))
+                      CircularProgressIndicator(color: AppColors.primaryAccent),)
               : CustomScrollView(
                   physics: const BouncingScrollPhysics(),
                   slivers: [
@@ -64,7 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         value: _settings.temperatureUnit,
                         options: const {
                           'celsius': '°C — Celsius',
-                          'fahrenheit': '°F — Fahrenheit'
+                          'fahrenheit': '°F — Fahrenheit',
                         },
                         onChanged: (v) =>
                             _update(_settings.copyWith(temperatureUnit: v)),
@@ -105,7 +105,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onChanged: (v) =>
                             _update(_settings.copyWith(visibilityUnit: v)),
                       ),
-                    ])),
+                    ]),),
                     SliverToBoxAdapter(
                         child: _buildSection('DISPLAY', [
                       _buildSwitchTile(
@@ -144,7 +144,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onChanged: (v) =>
                             _update(_settings.copyWith(mapStyle: v)),
                       ),
-                    ])),
+                    ]),),
                     SliverToBoxAdapter(
                         child: _buildSection('NOTIFICATIONS', [
                       _buildSwitchTile(
@@ -162,7 +162,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         value: _settings.severeAlertNotifications,
                         enabled: _settings.notifications,
                         onChanged: (v) => _update(
-                            _settings.copyWith(severeAlertNotifications: v)),
+                            _settings.copyWith(severeAlertNotifications: v),),
                       ),
                       _buildSwitchTile(
                         icon: Icons.water_drop_rounded,
@@ -171,7 +171,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         value: _settings.precipitationNotifications,
                         enabled: _settings.notifications,
                         onChanged: (v) => _update(
-                            _settings.copyWith(precipitationNotifications: v)),
+                            _settings.copyWith(precipitationNotifications: v),),
                       ),
                       _buildSwitchTile(
                         icon: Icons.wb_twilight_rounded,
@@ -180,9 +180,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         value: _settings.dailySummaryNotifications,
                         enabled: _settings.notifications,
                         onChanged: (v) => _update(
-                            _settings.copyWith(dailySummaryNotifications: v)),
+                            _settings.copyWith(dailySummaryNotifications: v),),
                       ),
-                    ])),
+                    ]),),
                     SliverToBoxAdapter(
                         child: _buildSection('API CONFIGURATION', [
                       _buildApiInfoTile(
@@ -217,7 +217,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         subtitle: 'CartoDB Dark (Free, Active)',
                         isActive: true,
                       ),
-                    ])),
+                    ]),),
                     SliverToBoxAdapter(
                         child: _buildSection('ABOUT', [
                       _buildInfoTile(
@@ -242,7 +242,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         color: AppColors.alertRed,
                         onTap: _resetSettings,
                       ),
-                    ])),
+                    ]),),
                     const SliverToBoxAdapter(child: SizedBox(height: 100)),
                   ],
                 ),
@@ -256,9 +256,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       child: Row(
         children: [
-          Column(
+          const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
                 'SETTINGS',
                 style: TextStyle(
@@ -287,7 +287,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(Icons.tune_rounded,
-                color: AppColors.white, size: 22),
+                color: AppColors.white, size: 22,),
           ),
         ],
       ),
@@ -327,8 +327,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         e.value,
                         if (e.key < children.length - 1)
                           const Divider(
-                              height: 1, color: AppColors.white10, indent: 52),
-                      ]))
+                              height: 1, color: AppColors.white10, indent: 52,),
+                      ],),)
                   .toList(),
             ),
           ),
@@ -418,7 +418,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
       trailing: const Icon(Icons.chevron_right_rounded,
-          color: AppColors.white40, size: 20),
+          color: AppColors.white40, size: 20,),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       onTap: () => _showOptionsSheet(label, value, options, onChanged),
     );
@@ -441,7 +441,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         child: Icon(icon,
             color: isActive ? AppColors.accentGreen : AppColors.white40,
-            size: 18),
+            size: 18,),
       ),
       title: Text(
         label,
@@ -534,7 +534,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
       trailing: Icon(Icons.chevron_right_rounded,
-          color: color.withAlpha(153), size: 20),
+          color: color.withAlpha(153), size: 20,),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       onTap: onTap,
     );
@@ -617,23 +617,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
               fontFamily: 'Rajdhani',
               color: AppColors.white,
               fontSize: 20,
-              fontWeight: FontWeight.w700),
+              fontWeight: FontWeight.w700,),
         ),
         content: const Text(
           'This will remove all cached weather data. Fresh data will be fetched on next load.',
           style: TextStyle(
-              fontFamily: 'Rajdhani', color: AppColors.white60, fontSize: 14),
+              fontFamily: 'Rajdhani', color: AppColors.white60, fontSize: 14,),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel',
                 style: TextStyle(
-                    fontFamily: 'Rajdhani', color: AppColors.white60)),
+                    fontFamily: 'Rajdhani', color: AppColors.white60,),),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.alertOrange),
+                backgroundColor: AppColors.alertOrange,),
             onPressed: () async {
               Navigator.pop(ctx);
               final prefs = await SharedPreferences.getInstance();
@@ -647,7 +647,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
             child: const Text('Clear',
                 style:
-                    TextStyle(fontFamily: 'Rajdhani', color: AppColors.white)),
+                    TextStyle(fontFamily: 'Rajdhani', color: AppColors.white),),
           ),
         ],
       ),
@@ -666,19 +666,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               fontFamily: 'Rajdhani',
               color: AppColors.white,
               fontSize: 20,
-              fontWeight: FontWeight.w700),
+              fontWeight: FontWeight.w700,),
         ),
         content: const Text(
           'All settings will be restored to their default values.',
           style: TextStyle(
-              fontFamily: 'Rajdhani', color: AppColors.white60, fontSize: 14),
+              fontFamily: 'Rajdhani', color: AppColors.white60, fontSize: 14,),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel',
                 style: TextStyle(
-                    fontFamily: 'Rajdhani', color: AppColors.white60)),
+                    fontFamily: 'Rajdhani', color: AppColors.white60,),),
           ),
           ElevatedButton(
             style:
@@ -692,7 +692,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
             child: const Text('Reset',
                 style:
-                    TextStyle(fontFamily: 'Rajdhani', color: AppColors.white)),
+                    TextStyle(fontFamily: 'Rajdhani', color: AppColors.white),),
           ),
         ],
       ),

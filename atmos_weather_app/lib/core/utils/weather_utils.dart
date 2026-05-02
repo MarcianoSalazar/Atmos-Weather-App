@@ -157,7 +157,7 @@ class WeatherUtils {
   // Wind direction
   static String getWindDirection(double degrees) {
     const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
-      'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+      'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW',];
     final index = ((degrees / 22.5) + 0.5).toInt() % 16;
     return directions[index];
   }
@@ -273,7 +273,7 @@ class WeatherUtils {
     }
     final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
     final period = dt.hour >= 12 ? 'PM' : 'AM';
-    return '${hour}$period';
+    return '$hour$period';
   }
 
   // Get alert severity color

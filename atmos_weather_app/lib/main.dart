@@ -26,7 +26,7 @@ void main() async {
     statusBarIconBrightness: Brightness.light,
     systemNavigationBarColor: AppColors.primaryDark,
     systemNavigationBarIconBrightness: Brightness.light,
-  ));
+  ),);
 
   // Initialize dependencies
   final prefs = await SharedPreferences.getInstance();

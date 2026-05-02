@@ -117,7 +117,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
                   if (state is SearchLoading) {
                     return const Center(
                       child: CircularProgressIndicator(
-                          color: AppColors.primaryAccent),
+                          color: AppColors.primaryAccent,),
                     );
                   }
 
@@ -140,7 +140,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const Icon(Icons.search_off_rounded,
-                              color: AppColors.white40, size: 56),
+                              color: AppColors.white40, size: 56,),
                           const SizedBox(height: 16),
                           Text(
                             'No results for "${state.query}"',
@@ -240,7 +240,7 @@ class _SearchResultItem extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
         ),
         child: const Icon(Icons.location_on_rounded,
-            color: AppColors.primaryBright, size: 20),
+            color: AppColors.primaryBright, size: 20,),
       ),
       title: Text(
         result.name,
@@ -262,7 +262,7 @@ class _SearchResultItem extends StatelessWidget {
         ),
       ),
       trailing: const Icon(Icons.arrow_forward_ios_rounded,
-          color: AppColors.white40, size: 14),
+          color: AppColors.white40, size: 14,),
       onTap: onTap,
     );
   }

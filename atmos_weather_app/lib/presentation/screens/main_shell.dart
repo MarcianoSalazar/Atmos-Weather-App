@@ -56,7 +56,7 @@ class MainShellState extends State<MainShell> with TickerProviderStateMixin {
     _iconControllers = List.generate(
       _navItems.length,
       (_) => AnimationController(
-          vsync: this, duration: const Duration(milliseconds: 300)),
+          vsync: this, duration: const Duration(milliseconds: 300),),
     );
     _iconControllers[0].forward();
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -64,7 +64,7 @@ class MainShellState extends State<MainShell> with TickerProviderStateMixin {
       statusBarIconBrightness: Brightness.light,
       systemNavigationBarColor: AppColors.primaryDark,
       systemNavigationBarIconBrightness: Brightness.light,
-    ));
+    ),);
   }
 
   @override
@@ -117,7 +117,7 @@ class MainShellState extends State<MainShell> with TickerProviderStateMixin {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.primaryDark,
-        border: Border(top: BorderSide(color: AppColors.white10)),
+        border: const Border(top: BorderSide(color: AppColors.white10)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.3),
