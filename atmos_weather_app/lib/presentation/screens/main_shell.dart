@@ -56,15 +56,19 @@ class MainShellState extends State<MainShell> with TickerProviderStateMixin {
     _iconControllers = List.generate(
       _navItems.length,
       (_) => AnimationController(
-          vsync: this, duration: const Duration(milliseconds: 300),),
+        vsync: this,
+        duration: const Duration(milliseconds: 300),
+      ),
     );
     _iconControllers[0].forward();
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: AppColors.primaryDark,
-      systemNavigationBarIconBrightness: Brightness.light,
-    ),);
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: AppColors.primaryDark,
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
+    );
   }
 
   @override
@@ -120,7 +124,7 @@ class MainShellState extends State<MainShell> with TickerProviderStateMixin {
         border: const Border(top: BorderSide(color: AppColors.white10)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withValues(alpha: 77),
             blurRadius: 20,
             offset: const Offset(0, -5),
           ),
@@ -201,7 +205,7 @@ class _NavBarItem extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? AppColors.tempYellow.withOpacity(0.15)
+                          ? AppColors.tempYellow.withValues(alpha: 38)
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(20),
                     ),

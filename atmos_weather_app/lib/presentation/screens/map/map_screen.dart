@@ -192,16 +192,20 @@ class _MapScreenState extends State<MapScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: AppColors.primaryDark.withOpacity(0.9),
+              color: AppColors.primaryDark.withValues(alpha: 230),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                  color: (layerData['color'] as Color).withOpacity(0.5),),
+                color: (layerData['color'] as Color).withValues(alpha: 128),
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(layerData['icon'] as IconData,
-                    color: layerData['color'] as Color, size: 18,),
+                Icon(
+                  layerData['icon'] as IconData,
+                  color: layerData['color'] as Color,
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   layerData['label'] as String,
@@ -224,14 +228,17 @@ class _MapScreenState extends State<MapScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: AppColors.primaryDark.withOpacity(0.9),
+                color: AppColors.primaryDark.withValues(alpha: 230),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.white20),
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.layers_rounded,
-                      color: AppColors.white, size: 18,),
+                  Icon(
+                    Icons.layers_rounded,
+                    color: AppColors.white,
+                    size: 18,
+                  ),
                   SizedBox(width: 6),
                   Text(
                     'Layers',
@@ -261,7 +268,7 @@ class _MapScreenState extends State<MapScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: AppColors.primaryDark.withOpacity(0.9),
+                color: AppColors.primaryDark.withValues(alpha: 230),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: AppColors.white20),
               ),
@@ -280,8 +287,7 @@ class _MapScreenState extends State<MapScreen> {
                   SliderTheme(
                     data: const SliderThemeData(
                       trackHeight: 3,
-                      thumbShape:
-                          RoundSliderThumbShape(enabledThumbRadius: 8),
+                      thumbShape: RoundSliderThumbShape(enabledThumbRadius: 8),
                     ),
                     child: Slider(
                       value: _opacity,
@@ -306,7 +312,7 @@ class _MapScreenState extends State<MapScreen> {
               width: 48,
               height: 72,
               decoration: BoxDecoration(
-                color: AppColors.primaryDark.withOpacity(0.9),
+                color: AppColors.primaryDark.withValues(alpha: 230),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: AppColors.white20),
               ),
@@ -432,9 +438,10 @@ class _LocationMarker extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: AppColors.primaryDark.withOpacity(0.9),
+              color: AppColors.primaryDark.withValues(alpha: 230),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.tempYellow.withOpacity(0.7)),
+              border: Border.all(
+                  color: AppColors.tempYellow.withValues(alpha: 179)),
             ),
             child: Text(
               cityName,
@@ -460,7 +467,7 @@ class _LocationMarker extends StatelessWidget {
             border: Border.all(color: AppColors.white, width: 2),
             boxShadow: [
               BoxShadow(
-                color: AppColors.tempYellow.withOpacity(0.5),
+                color: AppColors.tempYellow.withValues(alpha: 128),
                 blurRadius: 8,
                 spreadRadius: 2,
               ),

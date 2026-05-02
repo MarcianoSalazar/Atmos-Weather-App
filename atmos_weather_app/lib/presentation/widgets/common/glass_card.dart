@@ -114,7 +114,7 @@ class AtmosChip extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? c.withOpacity(0.2) : AppColors.white10,
+          color: isSelected ? c.withValues(alpha: 51) : AppColors.white10,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: isSelected ? c : AppColors.white20),
         ),
