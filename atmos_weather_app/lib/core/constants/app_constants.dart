@@ -8,11 +8,11 @@ class AppConstants {
   static const String appVersion = '1.0.0';
 
   // API Keys - Replace with your actual keys
-  static const String openWeatherApiKey = 'YOUR_OPENWEATHER_API_KEY';
+  static const String openWeatherApiKey = 'e8a83f5133b0cbac5b85eb65a806fdab';
   static const String weatherApiKey = 'YOUR_WEATHERAPI_COM_KEY';
   static const String airQualityApiKey = 'YOUR_IQAIR_API_KEY';
   static const String mapboxToken = 'YOUR_MAPBOX_PUBLIC_TOKEN';
-  static const String geoapifyApiKey = 'YOUR_GEOAPIFY_API_KEY';
+  static const String geoapifyApiKey = '86e1698c6d9947a3ba184ae539259efd';
   static const String openMeteoBaseUrl = 'https://api.open-meteo.com/v1';
 
   // OpenWeatherMap Endpoints
