@@ -72,7 +72,6 @@ class AppColors {
   );
 
   static const LinearGradient tempGradient = LinearGradient(
-    end: Alignment.centerRight,
     colors: [Color(0xFFFFD600), Color(0xFFFF9800)],
   );
 

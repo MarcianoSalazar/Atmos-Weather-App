@@ -191,7 +191,6 @@ class _LoadingShimmerState extends State<LoadingShimmer>
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(widget.borderRadius),
             gradient: LinearGradient(
-              end: Alignment.centerRight,
               stops: [
                 (_animation.value - 0.3).clamp(0.0, 1.0),
                 _animation.value.clamp(0.0, 1.0),
