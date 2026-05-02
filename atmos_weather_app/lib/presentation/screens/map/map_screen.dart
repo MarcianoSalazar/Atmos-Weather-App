@@ -441,7 +441,7 @@ class _LocationMarker extends StatelessWidget {
               color: AppColors.primaryDark.withValues(alpha: 230),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                  color: AppColors.tempYellow.withValues(alpha: 179)),
+                  color: AppColors.tempYellow.withValues(alpha: 179),),
             ),
             child: Text(
               cityName,
