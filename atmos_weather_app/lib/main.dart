@@ -1,171 +1,96 @@
+// lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-import 'providers/weather_provider.dart';
-import 'theme/app_theme.dart';
-import 'screens/main_scaffold.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dio/dio.dart';
+
+import 'core/theme/app_theme.dart';
+import 'data/repositories/weather_repository.dart';
+import 'presentation/bloc/weather/weather_bloc.dart';
+import 'presentation/screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Set status bar transparent
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-    ),
-  );
-
-  // Lock to portrait mode
+  // Lock orientation to portrait
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  runApp(const AtmosApp());
+  // Transparent status bar
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    systemNavigationBarColor: AppColors.primaryDark,
+    systemNavigationBarIconBrightness: Brightness.light,
+  ));
+
+  // Initialize dependencies
+  final prefs = await SharedPreferences.getInstance();
+  final dio = _createDio();
+  final weatherRepository = WeatherRepository(dio: dio, prefs: prefs);
+
+  runApp(AtmosApp(weatherRepository: weatherRepository));
+}
+
+Dio _createDio() {
+  final dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 20),
+      sendTimeout: const Duration(seconds: 10),
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+    ),
+  );
+
+  // Add logging interceptor in debug
+  dio.interceptors.add(
+    InterceptorsWrapper(
+      onError: (error, handler) {
+        debugPrint('Dio error: ${error.message}');
+        handler.next(error);
+      },
+      onResponse: (response, handler) {
+        handler.next(response);
+      },
+    ),
+  );
+
+  return dio;
 }
 
 class AtmosApp extends StatelessWidget {
-  const AtmosApp({super.key});
+  final WeatherRepository weatherRepository;
+
+  const AtmosApp({super.key, required this.weatherRepository});
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => WeatherProvider()..loadWeatherByLocation(),
-      child: MaterialApp(
-        title: 'ATMOS',
-        debugShowCheckedModeBanner: false,
-        theme: AtmosTheme.theme,
-        home: const AtmosSplash(),
-      ),
-    );
-  }
-}
-
-// Splash screen
-class AtmosSplash extends StatefulWidget {
-  const AtmosSplash({super.key});
-
-  @override
-  State<AtmosSplash> createState() => _AtmosSplashState();
-}
-
-class _AtmosSplashState extends State<AtmosSplash>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _fadeAnim;
-  late Animation<double> _scaleAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-    _fadeAnim = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
-      ),
-    );
-    _scaleAnim = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
-      ),
-    );
-
-    _controller.forward();
-
-    Future.delayed(const Duration(milliseconds: 2500), () {
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (_, __, ___) => const MainScaffold(),
-            transitionsBuilder: (_, anim, __, child) => FadeTransition(
-              opacity: anim,
-              child: child,
-            ),
-            transitionDuration: const Duration(milliseconds: 500),
-          ),
-        );
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: AtmosTheme.backgroundDecoration,
-        child: Center(
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (_, __) => FadeTransition(
-              opacity: _fadeAnim,
-              child: ScaleTransition(
-                scale: _scaleAnim,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Logo
-                    Container(
-                      width: 90,
-                      height: 90,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFFFFF).withAlpha(51),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: const Color(0xFFFFFFFF).withAlpha(102),
-                          width: 2,
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.cloud_queue_rounded,
-                        color: Colors.white,
-                        size: 48,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'ATMOS',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 32,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 6,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Modern Weather Intelligence',
-                      style: TextStyle(
-                        color: const Color(0xFFFFFFFF).withAlpha(204),
-                        fontSize: 13,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 48),
-                    SizedBox(
-                      width: 32,
-                      height: 32,
-                      child: CircularProgressIndicator(
-                        color: const Color(0xFFFFFFFF).withAlpha(179),
-                        strokeWidth: 2,
-                      ),
-                    ),
-                  ],
-                ),
+    return RepositoryProvider<WeatherRepository>(
+      create: (_) => weatherRepository,
+      child: BlocProvider<WeatherBloc>(
+        create: (context) => WeatherBloc(
+          repository: context.read<WeatherRepository>(),
+        ),
+        child: MaterialApp(
+          title: 'ATMOS',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.darkTheme,
+          home: const SplashScreen(),
+          builder: (context, child) {
+            return MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.noScaling,
               ),
-            ),
-          ),
+              child: child!,
+            );
+          },
         ),
       ),
     );
