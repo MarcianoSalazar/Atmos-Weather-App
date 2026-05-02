@@ -191,6 +191,56 @@ class WeatherService {
     return 0;
   }
 
+  // Fetch weather alerts using OpenWeather One Call API. Falls back to mock PH alerts.
+  Future<List<WeatherAlert>> getWeatherAlerts(double lat, double lon) async {
+    final url = '$_baseUrl/onecall?lat=$lat&lon=$lon&appid=$_apiKey&exclude=current,minutely,hourly,daily&units=metric';
+    try {
+      final response = await http.get(Uri.parse(url)).timeout(
+            const Duration(seconds: 10),
+          );
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> json = jsonDecode(response.body);
+        final List alerts = json['alerts'] ?? [];
+        return alerts.map((a) {
+          final title = a['event'] ?? 'Weather Alert';
+          final description = a['description'] ?? '';
+          String location = '';
+          if (a['sender_name'] != null) {
+            location = a['sender_name'];
+          } else if (a['tags'] is List && (a['tags'] as List).isNotEmpty) {
+            location = (a['tags'] as List).join(', ');
+          }
+
+          final start = (a['start'] ?? 0) as num;
+          final timestamp = DateTime.fromMillisecondsSinceEpoch(start.toInt() * 1000);
+
+          final eventStr = (a['event'] ?? '').toString().toLowerCase();
+          AlertSeverity severity = AlertSeverity.alert;
+          if (eventStr.contains('warning') || eventStr.contains('watch')) {
+            severity = AlertSeverity.warning;
+          } else if (eventStr.contains('typhoon') || eventStr.contains('tropical') || eventStr.contains('storm')) {
+            severity = AlertSeverity.typhoon;
+          } else if (eventStr.contains('advisory')) {
+            severity = AlertSeverity.advisory;
+          }
+
+          return WeatherAlert(
+            title: title,
+            description: description,
+            location: location,
+            severity: severity,
+            timestamp: timestamp,
+          );
+        }).toList();
+      }
+    } catch (_) {
+      // ignore and fallback
+    }
+
+    // Fallback to local mock alerts if API fails or returns none
+    return getPhilippinesAlerts();
+  }
+
   // Search cities
   Future<List<Map<String, dynamic>>> searchCities(String query) async {
     final url =

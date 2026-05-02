@@ -55,7 +55,7 @@ class WeatherProvider extends ChangeNotifier {
         await _fetchAllWeatherData(position.latitude, position.longitude);
       }
     } catch (e) {
-      // Fallback to Manila, Philippines
+      // Fallback to Manila
       _currentLat = 14.5995;
       _currentLon = 120.9842;
       await _fetchAllWeatherData(14.5995, 120.9842);
@@ -106,13 +106,21 @@ class WeatherProvider extends ChangeNotifier {
         _weatherService.getForecastByCoords(lat, lon),
         _weatherService.getHourlyForecast(lat, lon),
         _weatherService.getUvIndex(lat, lon),
+
+        // 🔥 NEW: fetch alerts
+        _weatherService.getWeatherAlerts(lat, lon),
       ]);
 
       final uvIndex = results[3] as int;
-      _currentWeather = (results[0] as WeatherData).copyWith(uvIndex: uvIndex);
+
+      _currentWeather =
+          (results[0] as WeatherData).copyWith(uvIndex: uvIndex);
       _forecast = results[1] as List<ForecastDay>;
       _hourlyForecast = results[2] as List<HourlyForecast>;
-      _alerts = _weatherService.getPhilippinesAlerts();
+
+      // ✅ REAL ALERTS
+      _alerts = results[4] as List<WeatherAlert>;
+
       _status = WeatherStatus.loaded;
     } catch (e) {
       _status = WeatherStatus.error;
@@ -156,7 +164,7 @@ class WeatherProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Reminder messages based on weather
+  // Reminder messages (UNCHANGED)
   List<Map<String, dynamic>> get contextReminders {
     if (_currentWeather == null) return [];
     final reminders = <Map<String, dynamic>>[];

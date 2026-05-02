@@ -155,7 +155,7 @@ class _PrepChecklistState extends State<_PrepChecklist> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: AtmosTheme.primaryBlue.withOpacity(0.1),
+            color: AtmosTheme.primaryBlue.withValues(alpha: 0.1),
             blurRadius: 8,
           ),
         ],
@@ -229,7 +229,7 @@ class _HotlineCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: AtmosTheme.primaryBlue.withOpacity(0.1),
+            color: AtmosTheme.primaryBlue.withValues(alpha: 0.1),
             blurRadius: 8,
           ),
         ],
@@ -301,7 +301,7 @@ class _EvacuationCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF2E7D32).withOpacity(0.1),
+            color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
             blurRadius: 8,
           ),
         ],
@@ -354,7 +354,7 @@ class _PowerOutageKit extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFE65100).withOpacity(0.1),
+            color: const Color(0xFFE65100).withValues(alpha: 0.1),
             blurRadius: 8,
           ),
         ],

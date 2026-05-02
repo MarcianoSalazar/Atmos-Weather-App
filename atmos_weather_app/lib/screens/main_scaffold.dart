@@ -4,6 +4,7 @@ import '../providers/weather_provider.dart';
 import '../theme/app_theme.dart';
 import 'home_screen.dart';
 import 'map_screen.dart';
+import 'alerts_screen.dart';
 
 // ── Placeholder screen for tabs not yet implemented ──────────────────────────
 class _ComingSoonScreen extends StatelessWidget {
@@ -74,11 +75,7 @@ class MainScaffold extends StatelessWidget {
                       children: const [
                         HomeScreen(), // 0 – ✅ Home
                         MapScreen(), // 1 – ✅ Map
-                        _ComingSoonScreen(
-                          // 2 – 🔜 Alerts
-                          label: 'Alerts',
-                          icon: Icons.notifications_rounded,
-                        ),
+                        AlertsScreen(), // 2 – Alerts
                         _ComingSoonScreen(
                           // 3 – 🔜 Reminders
                           label: 'Reminders',

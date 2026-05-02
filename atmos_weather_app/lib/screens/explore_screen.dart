@@ -133,7 +133,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.black.withOpacity(0.6),
+                      Colors.black.withValues(alpha: 0.6),
                       Colors.transparent,
                     ],
                   ),
@@ -163,7 +163,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         const BorderRadius.vertical(top: Radius.circular(20)),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
+                        color: Colors.black.withValues(alpha: 0.2),
                         blurRadius: 16,
                         offset: const Offset(0, -4),
                       ),
@@ -238,7 +238,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
                                     color:
-                                        AtmosTheme.lightBlue.withOpacity(0.3),
+                                        AtmosTheme.lightBlue.withValues(alpha: 0.3),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Column(
@@ -534,7 +534,7 @@ class _PulsingMarkerState extends State<_PulsingMarker>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: AtmosTheme.primaryBlue
-                  .withOpacity(0.3 * (1 - _animation.value + 0.5)),
+                  .withValues(alpha: 0.3 * (1 - _animation.value + 0.5)),
             ),
           ),
           Container(
