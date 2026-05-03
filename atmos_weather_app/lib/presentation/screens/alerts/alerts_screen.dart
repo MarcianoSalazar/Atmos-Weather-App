@@ -61,8 +61,7 @@ class _AlertsScreenState extends State<AlertsScreen>
                   _cachedLat = state.lat;
                   _cachedLon = state.lon;
                   _cachedCountry = state.countryCode;
-                  _cachedTemp =
-                      state.weather.current?.temperature2m?.toDouble();
+                  _cachedTemp = state.weather.current?.temperature2m;
                   _fetchAlerts(state.lat, state.lon);
                 }
               }
