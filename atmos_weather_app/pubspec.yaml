@@ -72,8 +72,10 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  assets:
-    - assets/icons/
-    - assets/images/
-    - assets/animations/
+# Uncomment and list asset directories/files below when the corresponding
+# folders exist in the project. Example:
+# assets:
+#   - assets/icons/
+#   - assets/images/
+#   - assets/animations/
 
