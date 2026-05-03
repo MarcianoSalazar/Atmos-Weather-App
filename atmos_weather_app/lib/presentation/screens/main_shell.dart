@@ -142,7 +142,6 @@ class MainShellState extends State<MainShell> with TickerProviderStateMixin {
                   isSelected: _currentIndex == index,
                   controller: _iconControllers[index],
                   onTap: () => _onTabTapped(index),
-                  badgeCount: index == 3 ? 2 : 0, // Demo alert badge
                 ),
               );
             }),
@@ -177,6 +176,7 @@ class _NavBarItem extends StatelessWidget {
     required this.isSelected,
     required this.controller,
     required this.onTap,
+    // ignore: unused_element_parameter
     this.badgeCount = 0,
   });
 
