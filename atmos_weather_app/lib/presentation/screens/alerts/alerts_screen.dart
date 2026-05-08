@@ -1,8 +1,9 @@
-// lib/presentation/screens/alerts/alerts_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/weather_utils.dart';
+import '../../../data/models/weather_model.dart';
 import '../../../data/repositories/weather_repository.dart';
 import '../../bloc/weather/weather_bloc.dart';
 
@@ -13,560 +14,563 @@ class AlertsScreen extends StatefulWidget {
   State<AlertsScreen> createState() => _AlertsScreenState();
 }
 
-class _AlertsScreenState extends State<AlertsScreen>
-    with AutomaticKeepAliveClientMixin<AlertsScreen> {
-  List<Map<String, dynamic>> _alerts = [];
-  bool _loadingAlerts = false;
-  double? _cachedLat;
-  double? _cachedLon;
-  String _cachedCountry = '';
-  double? _cachedTemp;
+class _AlertsScreenState extends State<AlertsScreen> {
+  List<WeatherAlert> _storedAlerts = [];
+  bool _loading = true;
 
   @override
-  bool get wantKeepAlive => true;
+  void initState() {
+    super.initState();
+    _loadAlerts();
+  }
 
-  Future<void> _fetchAlerts(double lat, double lon) async {
-    if (_loadingAlerts) return;
-    setState(() => _loadingAlerts = true);
-    try {
-      final repo = context.read<WeatherRepository>();
-      final data = await repo.fetchOpenWeatherMap(lat: lat, lon: lon);
-      if (mounted) {
-        setState(() {
-          _alerts = ((data?['alerts'] as List<dynamic>?) ?? [])
-              .map((a) => Map<String, dynamic>.from(a as Map))
-              .toList();
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _alerts = []);
-    } finally {
-      if (mounted) setState(() => _loadingAlerts = false);
-    }
+  Future<void> _loadAlerts() async {
+    final alerts = context.read<WeatherRepository>().getStoredAlerts();
+    if (!mounted) return;
+    setState(() {
+      _storedAlerts = alerts;
+      _loading = false;
+    });
+  }
+
+  Future<void> _refresh() async {
+    context.read<WeatherBloc>().add(const RefreshWeather());
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await _loadAlerts();
+  }
+
+  Future<void> _markAsRead(WeatherAlert alert) async {
+    if (alert.isRead) return;
+    await context.read<WeatherRepository>().markAlertRead(alert.id);
+    await _loadAlerts();
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
-    return Scaffold(
-      backgroundColor: AppColors.primaryDeep,
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppColors.skyGradient),
-        child: SafeArea(
-          child: BlocConsumer<WeatherBloc, WeatherState>(
-            listener: (context, state) {
-              if (state is WeatherLoaded) {
-                // Fetch alerts when location changes
-                if (state.lat != _cachedLat || state.lon != _cachedLon) {
-                  _cachedLat = state.lat;
-                  _cachedLon = state.lon;
-                  _cachedCountry = state.countryCode;
-                  _cachedTemp = state.weather.current?.temperature2m;
-                  _fetchAlerts(state.lat, state.lon);
-                }
-              }
-            },
-            builder: (context, state) {
-              final isLoading =
-                  state is WeatherLoading || state is WeatherInitial;
+    return BlocBuilder<WeatherBloc, WeatherState>(
+      builder: (context, state) {
+        final snapshot = _extractWeatherSnapshot(state);
+        final generatedAlerts = snapshot.current == null
+            ? <WeatherAlert>[]
+            : _buildWeatherAdvisories(
+                weather: snapshot.current!,
+                lat: snapshot.lat,
+                lon: snapshot.lon,
+                cityName: snapshot.cityName,
+                countryCode: snapshot.countryCode,
+              );
 
-              if (isLoading && _cachedLat == null) {
-                return const Center(child: CircularProgressIndicator());
-              }
+        final alerts = <WeatherAlert>[..._storedAlerts, ...generatedAlerts]
+          ..sort((a, b) {
+            if (a.isRead != b.isRead) {
+              return a.isRead ? 1 : -1;
+            }
+            return b.startsAt.compareTo(a.startsAt);
+          });
 
-              return RefreshIndicator(
-                onRefresh: () async {
-                  context.read<WeatherBloc>().add(const RefreshWeather());
-                  if (_cachedLat != null && _cachedLon != null) {
-                    await _fetchAlerts(_cachedLat!, _cachedLon!);
-                  }
-                },
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ── Active alert count ──────────────────────────────
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.red.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Icon(Icons.warning_amber_rounded,
-                                  color: Colors.redAccent, size: 24),
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _loadingAlerts
-                                      ? 'Loading alerts…'
-                                      : '${_alerts.length} Active Alerts',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Text(
-                                  _cachedCountry.isNotEmpty
-                                      ? 'In $_cachedCountry'
-                                      : 'Near You',
-                                  style: TextStyle(
-                                    color:
-                                        Colors.white.withValues(alpha: 0.7),
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
+        final unreadCount = alerts.where((alert) => !alert.isRead).length;
 
-                      // ── Alert list ──────────────────────────────────────
-                      const Text(
-                        'Active Alerts',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
+        return Scaffold(
+          backgroundColor: AppColors.primaryDeep,
+          body: Container(
+            decoration: const BoxDecoration(gradient: AppColors.skyGradient),
+            child: SafeArea(
+              child: _loading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                          color: AppColors.tempYellow,),
+                    )
+                  : RefreshIndicator(
+                      color: AppColors.tempYellow,
+                      backgroundColor: AppColors.primaryDark,
+                      onRefresh: _refresh,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: BouncingScrollPhysics(),
                         ),
-                      ),
-                      const SizedBox(height: 10),
-
-                      if (_loadingAlerts)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: CircularProgressIndicator(),
-                          ),
-                        )
-                      else if (_alerts.isEmpty)
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            _cachedLat == null
-                                ? 'Search for a location to see weather alerts.'
-                                : 'No active weather alerts for this location.',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.7),
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        )
-                      else
-                        ..._alerts.map((a) => _AlertCard(alert: a)),
-
-                      const SizedBox(height: 20),
-
-                      // ── Disaster Preparedness ───────────────────────────
-                      const Text(
-                        'Reminders & Preparedness',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Go-bag checklist shown when typhoon/storm alerts present
-                      if (_hasTyphoonAlert())
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.06),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.08)),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 92,
-                                height: 92,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: const Center(
-                                  child: Icon(Icons.backpack_rounded,
-                                      color: Colors.white70, size: 48),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Go-Bag Checklist',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    _SimpleChecklist(items: const [
-                                      'Drinking water (3 days)',
-                                      'Non-perishable food',
-                                      'First aid kit & medicines',
-                                      'Flashlight & spare batteries',
-                                      'Portable radio / powerbank',
-                                      'Important documents in waterproof bag',
-                                      'Extra clothing & sturdy shoes',
-                                    ]),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                      // Heat reminders
-                      if ((_cachedTemp ?? 0) >= 30)
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.04),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.06)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Heat Index Reminders',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              _SimpleChecklist(items: const [
-                                'Carry water & stay hydrated',
-                                'Wear sunscreen & hat',
-                                'Use a light umbrella for shade',
-                              ]),
-                            ],
-                          ),
-                        ),
-
-                      const SizedBox(height: 8),
-
-                      // ── Emergency Hotlines ──────────────────────────────
-                      const Text(
-                        'Emergency Hotlines',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.03),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.06)),
-                        ),
-                        child: const Column(
-                          children: [
-                            _HotlineRow(
-                                label: 'Disaster Hotline',
-                                number: 'Not available'),
-                            _HotlineRow(
-                                label: 'Ambulance', number: 'Not available'),
-                            _HotlineRow(
-                                label: 'Police', number: 'Not available'),
-                            _HotlineRow(
-                                label: 'Fire Department',
-                                number: 'Not available'),
-                          ],
-                        ),
-                      ),
-
-                      // ── Evacuation Tips ─────────────────────────────────
-                      const Text(
-                        'Evacuation Tips',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.03),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.06)),
-                        ),
-                        child: const Column(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _Bullet(
-                                text:
-                                    'Stay calm, follow alerts and proceed to the nearest evacuation center.'),
-                            _Bullet(
-                                text:
-                                    'Bring your emergency kit and important documents.'),
-                            _Bullet(
-                                text:
-                                    'Assist children, elderly, and pets during evacuation.'),
-                          ],
-                        ),
-                      ),
-
-                      // ── Power Outage Kit ────────────────────────────────
-                      const Text(
-                        'Power Outage Kit',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        margin: const EdgeInsets.only(bottom: 20),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.03),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.06)),
-                        ),
-                        child: _SimpleChecklist(items: const [
-                          'Batteries & flashlight',
-                          'Candles & lighter',
-                          'Portable radio',
-                          'Powerbank & charging cables',
-                          'Spare cash',
-                        ]),
-                      ),
-
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.2)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.info_outline_rounded,
-                                color: Colors.white70, size: 18),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                'Weather alerts are location-based. Data updates automatically when you search for a new city.',
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.75),
-                                  fontSize: 11,
-                                  height: 1.4,
+                            _buildHeader(
+                              unreadCount: unreadCount,
+                              cityName: snapshot.cityName,
+                              countryCode: snapshot.countryCode,
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Active Alerts',
+                              style: TextStyle(
+                                fontFamily: 'Rajdhani',
+                                color: AppColors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            if (alerts.isEmpty)
+                              _buildEmptyState()
+                            else
+                              ...alerts.map(
+                                (alert) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _AlertCard(
+                                    alert: alert,
+                                    onTap: () => _markAsRead(alert),
+                                  ),
                                 ),
+                              ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Reminders & Preparedness',
+                              style: TextStyle(
+                                fontFamily: 'Rajdhani',
+                                color: AppColors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            if (alerts
+                                .any((alert) => alert.severity == 'severe'))
+                              _buildPreparednessPanel(
+                                title: 'Go-Bag Checklist',
+                                icon: Icons.backpack_rounded,
+                                items: const [
+                                  'Drinking water (3 days)',
+                                  'Non-perishable food',
+                                  'First aid kit & medicines',
+                                  'Flashlight & spare batteries',
+                                  'Portable radio / powerbank',
+                                  'Important documents in a waterproof bag',
+                                  'Extra clothing & sturdy shoes',
+                                ],
+                              ),
+                            if (snapshot.current != null &&
+                                snapshot.current!.temperature2m >= 30)
+                              _buildPreparednessPanel(
+                                title: 'Heat Index Reminders',
+                                icon: Icons.wb_sunny_rounded,
+                                items: const [
+                                  'Carry water & stay hydrated',
+                                  'Wear sunscreen & a hat',
+                                  'Use shade when possible',
+                                ],
+                              ),
+                            _buildInfoCard(
+                              child: const Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Emergency Hotlines',
+                                    style: TextStyle(
+                                      fontFamily: 'Rajdhani',
+                                      color: AppColors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  SizedBox(height: 10),
+                                  _HotlineRow(
+                                    label: 'Disaster Hotline',
+                                    number: 'Not available',
+                                  ),
+                                  _HotlineRow(
+                                    label: 'Ambulance',
+                                    number: 'Not available',
+                                  ),
+                                  _HotlineRow(
+                                    label: 'Police',
+                                    number: 'Not available',
+                                  ),
+                                  _HotlineRow(
+                                    label: 'Fire Department',
+                                    number: 'Not available',
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildInfoCard(
+                              child: const Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Evacuation Tips',
+                                    style: TextStyle(
+                                      fontFamily: 'Rajdhani',
+                                      color: AppColors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  _Bullet(
+                                    text:
+                                        'Stay calm, follow alerts, and proceed to the nearest evacuation center.',
+                                  ),
+                                  _Bullet(
+                                    text:
+                                        'Bring your emergency kit and important documents.',
+                                  ),
+                                  _Bullet(
+                                    text:
+                                        'Assist children, elderly, and pets during evacuation.',
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildInfoCard(
+                              child: const Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Power Outage Kit',
+                                    style: TextStyle(
+                                      fontFamily: 'Rajdhani',
+                                      color: AppColors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  _SimpleChecklist(
+                                    items: [
+                                      'Batteries & flashlight',
+                                      'Candles & lighter',
+                                      'Portable radio',
+                                      'Powerbank & charging cables',
+                                      'Spare cash',
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildInfoCard(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(
+                                    Icons.info_outline_rounded,
+                                    color: AppColors.white60,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'Weather alerts are location-aware. Reopen the app or refresh after searching a new city to update the alert list.',
+                                      style: TextStyle(
+                                        fontFamily: 'Rajdhani',
+                                        color: AppColors.white
+                                            .withValues(alpha: 191),
+                                        fontSize: 11,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 20),
-                    ],
+                    ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  _WeatherSnapshot _extractWeatherSnapshot(WeatherState state) {
+    if (state is WeatherLoaded) {
+      return _WeatherSnapshot(
+        current: state.weather.current,
+        cityName: state.cityName,
+        countryCode: state.countryCode,
+        lat: state.lat,
+        lon: state.lon,
+      );
+    }
+
+    if (state is WeatherRefreshing) {
+      return _WeatherSnapshot(
+        current: state.weather.current,
+        cityName: state.cityName,
+        countryCode: '',
+        lat: state.lat,
+        lon: state.lon,
+      );
+    }
+
+    return const _WeatherSnapshot(
+      current: null,
+      cityName: 'Your Location',
+      countryCode: '',
+      lat: 0,
+      lon: 0,
+    );
+  }
+
+  List<WeatherAlert> _buildWeatherAdvisories({
+    required CurrentOpenMeteo weather,
+    required double lat,
+    required double lon,
+    required String cityName,
+    required String countryCode,
+  }) {
+    final now = DateTime.now();
+    final location =
+        countryCode.isNotEmpty ? '$cityName, $countryCode' : cityName;
+    final alerts = <WeatherAlert>[];
+
+    if (weather.weatherCode >= 95) {
+      alerts.add(_generatedAlert(
+        id: 'storm_${lat}_${lon}_${weather.time}',
+        title: 'Thunderstorm Advisory',
+        event: 'Thunderstorm',
+        description:
+            'Thunderstorm conditions are active in $location. Seek shelter indoors and avoid open areas.',
+        severity: 'severe',
+        startsAt: now,
+        endsAt: now.add(const Duration(hours: 6)),
+        lat: lat,
+        lon: lon,
+      ),);
+    }
+
+    if (weather.precipitation > 5 || weather.weatherCode >= 80) {
+      alerts.add(_generatedAlert(
+        id: 'rain_${lat}_${lon}_${weather.time}',
+        title: 'Rainfall Advisory',
+        event: 'Heavy Rain',
+        description:
+            'Rain is expected around $location. Keep an umbrella ready and watch for flooding in low-lying areas.',
+        severity: 'moderate',
+        startsAt: now,
+        endsAt: now.add(const Duration(hours: 8)),
+        lat: lat,
+        lon: lon,
+      ),);
+    }
+
+    if (weather.temperature2m >= 33 || weather.apparentTemperature >= 36) {
+      alerts.add(_generatedAlert(
+        id: 'heat_${lat}_${lon}_${weather.time}',
+        title: 'Heat Advisory',
+        event: 'High Temperature',
+        description:
+            'Temperatures are elevated in $location. Stay hydrated, minimize direct sun exposure, and take frequent breaks.',
+        severity: 'moderate',
+        startsAt: now,
+        endsAt: now.add(const Duration(hours: 8)),
+        lat: lat,
+        lon: lon,
+      ),);
+    }
+
+    if (weather.windSpeed10m >= 40) {
+      alerts.add(_generatedAlert(
+        id: 'wind_${lat}_${lon}_${weather.time}',
+        title: 'Wind Advisory',
+        event: 'Strong Winds',
+        description:
+            'Strong winds are possible in $location. Secure loose objects and avoid exposed areas.',
+        severity: 'moderate',
+        startsAt: now,
+        endsAt: now.add(const Duration(hours: 6)),
+        lat: lat,
+        lon: lon,
+      ),);
+    }
+
+    return alerts;
+  }
+
+  WeatherAlert _generatedAlert({
+    required String id,
+    required String title,
+    required String event,
+    required String description,
+    required String severity,
+    required DateTime startsAt,
+    required DateTime endsAt,
+    required double lat,
+    required double lon,
+  }) {
+    return WeatherAlert(
+      id: id,
+      title: title,
+      description: description,
+      severity: severity,
+      event: event,
+      startsAt: startsAt,
+      endsAt: endsAt,
+      isRead: false,
+      lat: lat,
+      lon: lon,
+    );
+  }
+
+  Widget _buildHeader({
+    required int unreadCount,
+    required String cityName,
+    required String countryCode,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.primaryDark.withValues(alpha: 235),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.white10),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: AppColors.alertRed.withValues(alpha: 51),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.warning_amber_rounded,
+              color: AppColors.alertRed,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Weather Alerts',
+                  style: TextStyle(
+                    fontFamily: 'Rajdhani',
+                    color: AppColors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-              );
-            },
+                const SizedBox(height: 3),
+                Text(
+                  countryCode.isNotEmpty ? '$cityName, $countryCode' : cityName,
+                  style: const TextStyle(
+                    fontFamily: 'Rajdhani',
+                    color: AppColors.white60,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '$unreadCount',
+                style: const TextStyle(
+                  fontFamily: 'Rajdhani',
+                  color: AppColors.tempYellow,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Text(
+                'unread',
+                style: TextStyle(
+                  fontFamily: 'Rajdhani',
+                  color: AppColors.white60,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return _buildInfoCard(
+      child: const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 18),
+          child: Column(
+            children: [
+              Icon(
+                Icons.verified_outlined,
+                color: AppColors.white60,
+                size: 36,
+              ),
+              SizedBox(height: 10),
+              Text(
+                'No active alerts right now.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Rajdhani',
+                  color: AppColors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Pull to refresh after changing locations or weather updates.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Rajdhani',
+                  color: AppColors.white60,
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  bool _hasTyphoonAlert() {
-    return _alerts.any((a) {
-      final event = (a['event'] as String? ?? '').toLowerCase();
-      return event.contains('typhoon') ||
-          event.contains('tropical') ||
-          event.contains('storm');
-    });
-  }
-}
-
-// ── Alert Card ────────────────────────────────────────────────────────────────
-
-class _AlertCard extends StatelessWidget {
-  final Map<String, dynamic> alert;
-  const _AlertCard({required this.alert});
-
-  @override
-  Widget build(BuildContext context) {
-    final event = alert['event'] as String? ?? 'Weather Alert';
-    final description = alert['description'] as String? ?? '';
-    final senderName = alert['sender_name'] as String? ?? '';
-    final startMs =
-        ((alert['start'] as num?)?.toInt() ?? 0) * 1000;
-    final startTime = startMs > 0
-        ? DateTime.fromMillisecondsSinceEpoch(startMs)
-        : null;
-
-    final eventLower = event.toLowerCase();
-    late final Color color;
-    late final IconData icon;
-    late final String label;
-
-    if (eventLower.contains('typhoon') ||
-        eventLower.contains('tropical') ||
-        eventLower.contains('storm')) {
-      color = const Color(0xFFB71C1C);
-      icon = Icons.cyclone_rounded;
-      label = 'TYPHOON';
-    } else if (eventLower.contains('warning') ||
-        eventLower.contains('watch')) {
-      color = Colors.orange;
-      icon = Icons.warning_amber_rounded;
-      label = 'WARNING';
-    } else if (eventLower.contains('advisory')) {
-      color = Colors.amber;
-      icon = Icons.info_rounded;
-      label = 'ADVISORY';
-    } else {
-      color = Colors.blueAccent;
-      icon = Icons.notifications_rounded;
-      label = 'ALERT';
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.15),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-        border: Border(left: BorderSide(color: color, width: 4)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
+  Widget _buildPreparednessPanel({
+    required String title,
+    required IconData icon,
+    required List<String> items,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _buildInfoCard(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              width: 92,
+              height: 92,
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+                color: AppColors.white.withValues(alpha: 26),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: color, size: 22),
+              child: Icon(icon, color: AppColors.white60, size: 46),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: color,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          label,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                      if (senderName.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            senderName,
-                            style: const TextStyle(
-                              color: Color(0xFF555555),
-                              fontSize: 11,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 6),
                   Text(
-                    event,
+                    title,
                     style: const TextStyle(
-                      color: Color(0xFF1A1A1A),
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Rajdhani',
+                      color: AppColors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  if (startTime != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      'Since ${startTime.month}/${startTime.day} ${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}',
-                      style: const TextStyle(
-                        color: Color(0xFF777777),
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                  if (description.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      description,
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF444444),
-                        fontSize: 12,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
+                  const SizedBox(height: 8),
+                  _SimpleChecklist(items: items),
                 ],
               ),
             ),
@@ -575,12 +579,204 @@ class _AlertCard extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildInfoCard({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: AppColors.primaryDark.withValues(alpha: 220),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.white10),
+      ),
+      child: child,
+    );
+  }
 }
 
-// ── Helper Widgets ────────────────────────────────────────────────────────────
+class _WeatherSnapshot {
+  final CurrentOpenMeteo? current;
+  final String cityName;
+  final String countryCode;
+  final double lat;
+  final double lon;
+
+  const _WeatherSnapshot({
+    required this.current,
+    required this.cityName,
+    required this.countryCode,
+    required this.lat,
+    required this.lon,
+  });
+}
+
+class _AlertCard extends StatelessWidget {
+  final WeatherAlert alert;
+  final VoidCallback onTap;
+
+  const _AlertCard({required this.alert, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = WeatherUtils.getAlertSeverityColor(alert.severity);
+    final icon = WeatherUtils.getAlertSeverityIcon(alert.severity);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: alert.isRead
+                ? AppColors.white.withValues(alpha: 26)
+                : color.withValues(alpha: 20),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: alert.isRead
+                  ? AppColors.white.withValues(alpha: 26)
+                  : color.withValues(alpha: 102),
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 38),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Center(
+                  child: Text(icon, style: const TextStyle(fontSize: 22)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            alert.title,
+                            style: TextStyle(
+                              fontFamily: 'Rajdhani',
+                              color: AppColors.white,
+                              fontSize: 15,
+                              fontWeight: alert.isRead
+                                  ? FontWeight.w600
+                                  : FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        if (!alert.isRead)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.tempYellow.withValues(alpha: 38),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: const Text(
+                              'NEW',
+                              style: TextStyle(
+                                fontFamily: 'Rajdhani',
+                                color: AppColors.tempYellow,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      alert.event,
+                      style: TextStyle(
+                        fontFamily: 'Rajdhani',
+                        color: color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      alert.description,
+                      style: TextStyle(
+                        fontFamily: 'Rajdhani',
+                        color: AppColors.white.withValues(alpha: 204),
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _StatusChip(
+                          label: alert.severity.toUpperCase(),
+                          color: color,
+                        ),
+                        const SizedBox(width: 8),
+                        _StatusChip(
+                          label: alert.isRead ? 'READ' : 'UNREAD',
+                          color: alert.isRead
+                              ? AppColors.white60
+                              : AppColors.tempYellow,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _StatusChip({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 20),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 102)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'Rajdhani',
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.7,
+        ),
+      ),
+    );
+  }
+}
 
 class _SimpleChecklist extends StatelessWidget {
   final List<String> items;
+
   const _SimpleChecklist({required this.items});
 
   @override
@@ -588,26 +784,32 @@ class _SimpleChecklist extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: items
-          .map((i) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.check_circle_outline,
-                        color: Colors.white.withValues(alpha: 0.82), size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        i,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.78),
-                          fontSize: 13,
-                        ),
+          .map(
+            (item) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.check_circle_outline,
+                    color: AppColors.white.withValues(alpha: 210),
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      item,
+                      style: TextStyle(
+                        fontFamily: 'Rajdhani',
+                        color: AppColors.white.withValues(alpha: 200),
+                        fontSize: 13,
                       ),
                     ),
-                  ],
-                ),
-              ))
+                  ),
+                ],
+              ),
+            ),
+          )
           .toList(),
     );
   }
@@ -616,7 +818,8 @@ class _SimpleChecklist extends StatelessWidget {
 class _HotlineRow extends StatelessWidget {
   final String label;
   final String number;
-  const _HotlineRow({super.key, required this.label, required this.number});
+
+  const _HotlineRow({required this.label, required this.number});
 
   @override
   Widget build(BuildContext context) {
@@ -624,17 +827,23 @@ class _HotlineRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          const Icon(Icons.phone_rounded, color: Colors.white70, size: 18),
+          const Icon(Icons.phone_rounded, color: AppColors.white60, size: 18),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               label,
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.82)),
+              style: TextStyle(
+                fontFamily: 'Rajdhani',
+                color: AppColors.white.withValues(alpha: 210),
+              ),
             ),
           ),
           Text(
             number,
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.67)),
+            style: TextStyle(
+              fontFamily: 'Rajdhani',
+              color: AppColors.white.withValues(alpha: 170),
+            ),
           ),
         ],
       ),
@@ -644,7 +853,8 @@ class _HotlineRow extends StatelessWidget {
 
 class _Bullet extends StatelessWidget {
   final String text;
-  const _Bullet({super.key, required this.text});
+
+  const _Bullet({required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -654,12 +864,12 @@ class _Bullet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Icon(Icons.arrow_right_rounded,
-              color: Colors.white70, size: 16),
+              color: AppColors.white60, size: 16,),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               text,
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.78)),
+              style: TextStyle(color: AppColors.white.withValues(alpha: 200)),
             ),
           ),
         ],
