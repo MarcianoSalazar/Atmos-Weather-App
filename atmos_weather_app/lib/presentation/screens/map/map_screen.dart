@@ -126,6 +126,7 @@ class _MapScreenState extends State<MapScreen> {
               children: [
                 // Base tile layer
                 TileLayer(
+                  key: ValueKey(_baseTileUrl),
                   urlTemplate: _baseTileUrl,
                   userAgentPackageName: 'com.atmos.weather',
                   tileProvider: NetworkTileProvider(),
@@ -441,7 +442,8 @@ class _LocationMarker extends StatelessWidget {
               color: AppColors.primaryDark.withValues(alpha: 230),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                  color: AppColors.tempYellow.withValues(alpha: 179),),
+                color: AppColors.tempYellow.withValues(alpha: 179),
+              ),
             ),
             child: Text(
               cityName,
