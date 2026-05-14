@@ -195,12 +195,11 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
 
       await _fetchAndEmit(emit);
     } catch (_) {
-      // Fallback to Manila
-      _currentLat = 14.5995;
-      _currentLon = 120.9842;
-      _currentCity = 'Manila';
-      _currentCountry = 'Philippines';
-      await _fetchAndEmit(emit);
+      emit(
+        const WeatherError(
+          message: 'Unable to get current location. Please enable GPS.',
+        ),
+      );
     }
   }
 
