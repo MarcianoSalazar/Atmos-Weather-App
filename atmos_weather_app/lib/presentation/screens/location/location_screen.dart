@@ -621,15 +621,17 @@ class _LocationScreenState extends State<LocationScreen>
     await _persistRecent(dedupedRecent);
 
     if (blocState is WeatherLoaded) {
-      final lat = blocState.lat;
-      final lon = blocState.lon;
+      final loaded = blocState;
+      final lat = loaded.lat;
+      final lon = loaded.lon;
       final key = '${lat}_$lon';
       if (!_weatherCache.containsKey(key)) {
         await _fetchWeatherForKey(lat, lon);
       }
     } else if (blocState is WeatherRefreshing) {
-      final lat = blocState.lat;
-      final lon = blocState.lon;
+      final refreshing = blocState;
+      final lat = refreshing.lat;
+      final lon = refreshing.lon;
       final key = '${lat}_$lon';
       if (!_weatherCache.containsKey(key)) {
         await _fetchWeatherForKey(lat, lon);

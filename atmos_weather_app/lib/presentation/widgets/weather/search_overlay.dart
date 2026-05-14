@@ -1,5 +1,6 @@
 // lib/presentation/widgets/weather/search_overlay.dart
 
+import 'package:atmos/data/repositories/weather_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:async';
@@ -24,6 +25,13 @@ class SearchOverlay extends StatefulWidget {
 class _SearchOverlayState extends State<SearchOverlay> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
+  List<GeocodingResult> _recent = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecent();
+  }
 
   @override
   void dispose() {
@@ -36,10 +44,18 @@ class _SearchOverlayState extends State<SearchOverlay> {
     _debounce?.cancel();
     if (query.trim().isEmpty) {
       context.read<WeatherBloc>().add(const ClearSearch());
+      _loadRecent();
       return;
     }
     _debounce = Timer(const Duration(milliseconds: 500), () {
       context.read<WeatherBloc>().add(SearchCity(query));
+    });
+  }
+
+  void _loadRecent() {
+    final repo = context.read<WeatherRepository>();
+    setState(() {
+      _recent = repo.getRecentLocations(max: 8);
     });
   }
 
@@ -117,7 +133,8 @@ class _SearchOverlayState extends State<SearchOverlay> {
                   if (state is SearchLoading) {
                     return const Center(
                       child: CircularProgressIndicator(
-                          color: AppColors.primaryAccent,),
+                        color: AppColors.primaryAccent,
+                      ),
                     );
                   }
 
@@ -139,8 +156,11 @@ class _SearchOverlayState extends State<SearchOverlay> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.search_off_rounded,
-                              color: AppColors.white40, size: 56,),
+                          const Icon(
+                            Icons.search_off_rounded,
+                            color: AppColors.white40,
+                            size: 56,
+                          ),
                           const SizedBox(height: 16),
                           Text(
                             'No results for "${state.query}"',
@@ -155,8 +175,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
                     );
                   }
 
-                  // Initial state - show popular cities
-                  return _buildPopularCities();
+                  return _buildRecentSearches();
                 },
               ),
             ),
@@ -166,17 +185,19 @@ class _SearchOverlayState extends State<SearchOverlay> {
     );
   }
 
-  Widget _buildPopularCities() {
-    const cities = [
-      ('Manila', 'Philippines', 14.5995, 120.9842),
-      ('Tokyo', 'Japan', 35.6762, 139.6503),
-      ('New York', 'United States', 40.7128, -74.0060),
-      ('London', 'United Kingdom', 51.5074, -0.1278),
-      ('Paris', 'France', 48.8566, 2.3522),
-      ('Sydney', 'Australia', -33.8688, 151.2093),
-      ('Dubai', 'UAE', 25.2048, 55.2708),
-      ('Singapore', 'Singapore', 1.3521, 103.8198),
-    ];
+  Widget _buildRecentSearches() {
+    if (_recent.isEmpty) {
+      return const Center(
+        child: Text(
+          'No recent searches yet',
+          style: TextStyle(
+            fontFamily: 'Rajdhani',
+            fontSize: 14,
+            color: AppColors.white60,
+          ),
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -184,7 +205,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
         const Padding(
           padding: EdgeInsets.fromLTRB(20, 20, 20, 12),
           child: Text(
-            'POPULAR CITIES',
+            'RECENT SEARCHES',
             style: TextStyle(
               fontFamily: 'Rajdhani',
               fontSize: 12,
@@ -196,23 +217,11 @@ class _SearchOverlayState extends State<SearchOverlay> {
         ),
         Expanded(
           child: ListView(
-            children: cities
+            children: _recent
                 .map(
-                  (c) => _SearchResultItem(
-                    result: GeocodingResult(
-                      name: c.$1,
-                      lat: c.$3,
-                      lon: c.$4,
-                      country: c.$2,
-                    ),
-                    onTap: () => widget.onLocationSelected(
-                      GeocodingResult(
-                        name: c.$1,
-                        lat: c.$3,
-                        lon: c.$4,
-                        country: c.$2,
-                      ),
-                    ),
+                  (r) => _SearchResultItem(
+                    result: r,
+                    onTap: () => widget.onLocationSelected(r),
                   ),
                 )
                 .toList(),
@@ -239,8 +248,11 @@ class _SearchResultItem extends StatelessWidget {
           color: AppColors.white10,
           borderRadius: BorderRadius.circular(10),
         ),
-        child: const Icon(Icons.location_on_rounded,
-            color: AppColors.primaryBright, size: 20,),
+        child: const Icon(
+          Icons.location_on_rounded,
+          color: AppColors.primaryBright,
+          size: 20,
+        ),
       ),
       title: Text(
         result.name,
@@ -261,8 +273,11 @@ class _SearchResultItem extends StatelessWidget {
           color: AppColors.white60,
         ),
       ),
-      trailing: const Icon(Icons.arrow_forward_ios_rounded,
-          color: AppColors.white40, size: 14,),
+      trailing: const Icon(
+        Icons.arrow_forward_ios_rounded,
+        color: AppColors.white40,
+        size: 14,
+      ),
       onTap: onTap,
     );
   }

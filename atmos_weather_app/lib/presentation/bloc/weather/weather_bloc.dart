@@ -213,7 +213,8 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
     // ← Use the name/country that came from the search result directly
     _currentCity = event.cityName ?? _currentCity;
     _currentCountry = event.countryCode ?? _currentCountry;
-    _currentState = event.stateName ?? _currentState;
+    final nextState = (event.stateName ?? '').trim();
+    _currentState = nextState;
     await _repository.addRecentLocation(
       GeocodingResult(
         name: _currentCity.isNotEmpty ? _currentCity : 'Selected Location',
