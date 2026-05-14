@@ -12,10 +12,13 @@ class WeatherRepository {
   final Dio _dio;
   final SharedPreferences _prefs;
   final Logger _logger = Logger();
+  final ValueNotifier<int> unreadAlerts = ValueNotifier<int>(0);
 
   WeatherRepository({required Dio dio, required SharedPreferences prefs})
       : _dio = dio,
-        _prefs = prefs;
+        _prefs = prefs {
+    _refreshUnreadAlerts();
+  }
 
   // Fetch current + hourly + daily forecast from Open-Meteo (FREE, no key required)
   Future<OpenMeteoModel> fetchOpenMeteoForecast({
@@ -172,13 +175,15 @@ class WeatherRepository {
       }
 
       final results = (data['results'] as List<dynamic>? ?? [])
-          .map((e) => GeocodingResult(
-                name: e['name'] as String,
-                lat: (e['latitude'] as num).toDouble(),
-                lon: (e['longitude'] as num).toDouble(),
-                country: e['country'] as String? ?? '',
-                state: e['admin1'] as String?,
-              ),)
+          .map(
+            (e) => GeocodingResult(
+              name: e['name'] as String,
+              lat: (e['latitude'] as num).toDouble(),
+              lon: (e['longitude'] as num).toDouble(),
+              country: e['country'] as String? ?? '',
+              state: e['admin1'] as String?,
+            ),
+          )
           .toList();
 
       return results;
@@ -345,7 +350,8 @@ class WeatherRepository {
 
   // Get weather for multiple saved locations
   Future<Map<String, OpenMeteoModel>> fetchMultipleLocations(
-      List<SavedLocation> locations,) async {
+    List<SavedLocation> locations,
+  ) async {
     final Map<String, OpenMeteoModel> results = {};
     for (final loc in locations) {
       try {
@@ -433,6 +439,49 @@ class WeatherRepository {
     );
   }
 
+  // Recent locations
+  List<GeocodingResult> getRecentLocations({int max = 3}) {
+    final stored = _prefs.getString(AppConstants.recentLocationsKey);
+    if (stored == null) return [];
+    try {
+      final List<dynamic> parsed = jsonDecode(stored) as List<dynamic>;
+      final results = parsed
+          .map((e) => GeocodingResult.fromJson(e as Map<String, dynamic>))
+          .toList();
+      return results.length > max ? results.sublist(0, max) : results;
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<void> addRecentLocation(
+    GeocodingResult result, {
+    int max = 3,
+  }) async {
+    final current = getRecentLocations(max: max);
+    current.removeWhere(
+      (r) => r.lat == result.lat && r.lon == result.lon,
+    );
+    current.insert(0, result);
+    final trimmed = current.length > max ? current.sublist(0, max) : current;
+    await _prefs.setString(
+      AppConstants.recentLocationsKey,
+      jsonEncode(
+        trimmed
+            .map(
+              (r) => {
+                'name': r.name,
+                'lat': r.lat,
+                'lon': r.lon,
+                'country': r.country,
+                'state': r.state,
+              },
+            )
+            .toList(),
+      ),
+    );
+  }
+
   // Alerts
   List<WeatherAlert> getStoredAlerts() {
     final stored = _prefs.getString(AppConstants.alertsKey);
@@ -447,6 +496,14 @@ class WeatherRepository {
     }
   }
 
+  Future<void> saveAlerts(List<WeatherAlert> alerts) async {
+    await _prefs.setString(
+      AppConstants.alertsKey,
+      jsonEncode(alerts.map((a) => a.toJson()).toList()),
+    );
+    unreadAlerts.value = alerts.where((a) => !a.isRead).length;
+  }
+
   Future<void> markAlertRead(String alertId) async {
     final alerts = getStoredAlerts();
     final idx = alerts.indexWhere((a) => a.id == alertId);
@@ -456,11 +513,18 @@ class WeatherRepository {
         AppConstants.alertsKey,
         jsonEncode(alerts.map((a) => a.toJson()).toList()),
       );
+      unreadAlerts.value = alerts.where((a) => !a.isRead).length;
     }
   }
 
   Future<void> clearAllAlerts() async {
     await _prefs.remove(AppConstants.alertsKey);
+    unreadAlerts.value = 0;
+  }
+
+  void _refreshUnreadAlerts() {
+    final alerts = getStoredAlerts();
+    unreadAlerts.value = alerts.where((a) => !a.isRead).length;
   }
 
   // Settings
@@ -476,7 +540,9 @@ class WeatherRepository {
 
   Future<void> saveSettings(AppSettings settings) async {
     await _prefs.setString(
-        AppConstants.settingsKey, jsonEncode(settings.toJson()),);
+      AppConstants.settingsKey,
+      jsonEncode(settings.toJson()),
+    );
   }
 
   // Cache helpers
@@ -485,7 +551,8 @@ class WeatherRepository {
     if (stored == null) return null;
     try {
       return OpenMeteoModel.fromJson(
-          jsonDecode(stored) as Map<String, dynamic>,);
+        jsonDecode(stored) as Map<String, dynamic>,
+      );
     } catch (e) {
       return null;
     }

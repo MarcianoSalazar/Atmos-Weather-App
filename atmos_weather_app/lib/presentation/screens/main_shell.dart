@@ -2,12 +2,14 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../core/theme/app_theme.dart';
-import 'home/home_screen.dart';
-import 'map/map_screen.dart';
-import 'location/location_screen.dart';
-import 'alerts/alerts_screen.dart';
-import 'settings/settings_screen.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:atmos/core/theme/app_theme.dart';
+import 'package:atmos/data/repositories/weather_repository.dart';
+import 'package:atmos/presentation/screens/home/home_screen.dart';
+import 'package:atmos/presentation/screens/map/map_screen.dart';
+import 'package:atmos/presentation/screens/location/location_screen.dart';
+import 'package:atmos/presentation/screens/alerts/alerts_screen.dart';
+import 'package:atmos/presentation/screens/settings/settings_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -16,14 +18,21 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => MainShellState();
 }
 
-class MainShellState extends State<MainShell> with TickerProviderStateMixin {
+class MainShellState extends State<MainShell> {
   int _currentIndex = 0;
-  late final PageController _pageController;
-  late final List<AnimationController> _iconControllers;
 
-  final List<_NavItem> _navItems = const [
+  // Pre-built screens — all alive at once, no PageView travel
+  static const List<Widget> _screens = [
+    HomeScreen(),
+    MapScreen(),
+    LocationScreen(),
+    AlertsScreen(),
+    SettingsScreen(),
+  ];
+
+  static const List<_NavItem> _navItems = [
     _NavItem(
-      icon: Icons.home_rounded,
+      icon: Icons.home_outlined,
       activeIcon: Icons.home_rounded,
       label: 'Home',
     ),
@@ -49,52 +58,23 @@ class MainShellState extends State<MainShell> with TickerProviderStateMixin {
     ),
   ];
 
+  void navigateTo(int index) {
+    if (index == _currentIndex) return;
+    HapticFeedback.selectionClick();
+    setState(() => _currentIndex = index);
+  }
+
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: _currentIndex);
-    _iconControllers = List.generate(
-      _navItems.length,
-      (_) => AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 300),
-      ),
-    );
-    _iconControllers[0].forward();
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: AppColors.primaryDark,
+        systemNavigationBarColor: Color(0xFF080E1A),
         systemNavigationBarIconBrightness: Brightness.light,
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    for (final c in _iconControllers) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  void navigateTo(int index) {
-    _onTabTapped(index);
-  }
-
-  void _onTabTapped(int index) {
-    if (index == _currentIndex) return;
-    HapticFeedback.selectionClick();
-    _iconControllers[_currentIndex].reverse();
-    _iconControllers[index].forward();
-    _pageController.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeInOutCubic,
-    );
-    setState(() => _currentIndex = index);
   }
 
   @override
@@ -102,50 +82,148 @@ class MainShellState extends State<MainShell> with TickerProviderStateMixin {
     return Scaffold(
       backgroundColor: AppColors.primaryDeep,
       extendBody: true,
-      body: PageView(
-        controller: _pageController,
-        physics: const NeverScrollableScrollPhysics(),
-        children: const [
-          HomeScreen(),
-          MapScreen(),
-          LocationScreen(),
-          AlertsScreen(),
-          SettingsScreen(),
-        ],
+      // Use IndexedStack — all screens stay alive, zero travel animation
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
       ),
       bottomNavigationBar: _buildBottomNav(),
     );
   }
 
   Widget _buildBottomNav() {
+    final repo = context.read<WeatherRepository>();
     return Container(
-      decoration: BoxDecoration(
-        color: AppColors.primaryDark,
-        border: const Border(top: BorderSide(color: AppColors.white10)),
+      decoration: const BoxDecoration(
+        color: Color(0xFF080E1A), // very dark, high contrast
+        border: Border(
+          top: BorderSide(color: Color(0xFF1A2A45)),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 77),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
+            color: Color(0xCC000000),
+            blurRadius: 24,
+            offset: Offset(0, -4),
           ),
         ],
       ),
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 62,
+          height: 64,
           child: Row(
             children: List.generate(_navItems.length, (index) {
+              final isSelected = _currentIndex == index;
+              final item = _navItems[index];
+
+              if (index == 3) {
+                return Expanded(
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: repo.unreadAlerts,
+                    builder: (context, count, _) {
+                      return _buildNavItem(
+                        item: item,
+                        isSelected: isSelected,
+                        badgeCount: count,
+                        onTap: () => navigateTo(index),
+                      );
+                    },
+                  ),
+                );
+              }
+
               return Expanded(
-                child: _NavBarItem(
-                  item: _navItems[index],
-                  isSelected: _currentIndex == index,
-                  controller: _iconControllers[index],
-                  onTap: () => _onTabTapped(index),
+                child: _buildNavItem(
+                  item: item,
+                  isSelected: isSelected,
+                  badgeCount: 0,
+                  onTap: () => navigateTo(index),
                 ),
               );
             }),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required _NavItem item,
+    required bool isSelected,
+    required int badgeCount,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isSelected ? 14 : 8,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.tempYellow.withAlpha(46)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(
+                    isSelected ? item.activeIcon : item.icon,
+                    size: 22,
+                    color: isSelected
+                        ? AppColors.tempYellow
+                        : const Color(0xFF8899BB),
+                  ),
+                ),
+                if (badgeCount > 0)
+                  Positioned(
+                    top: -3,
+                    right: -3,
+                    child: Container(
+                      width: 15,
+                      height: 15,
+                      decoration: const BoxDecoration(
+                        color: AppColors.alertRed,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          '$badgeCount',
+                          style: const TextStyle(
+                            fontFamily: 'Rajdhani',
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 3),
+            Text(
+              item.label,
+              style: TextStyle(
+                fontFamily: 'Rajdhani',
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color:
+                    isSelected ? AppColors.tempYellow : const Color(0xFF8899BB),
+                letterSpacing: isSelected ? 0.4 : 0,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -162,105 +240,4 @@ class _NavItem {
     required this.activeIcon,
     required this.label,
   });
-}
-
-class _NavBarItem extends StatelessWidget {
-  final _NavItem item;
-  final bool isSelected;
-  final AnimationController controller;
-  final VoidCallback onTap;
-  final int badgeCount;
-
-  const _NavBarItem({
-    required this.item,
-    required this.isSelected,
-    required this.controller,
-    required this.onTap,
-    // ignore: unused_element_parameter
-    this.badgeCount = 0,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedBuilder(
-        animation: controller,
-        builder: (context, _) {
-          final t = controller.value;
-          return Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // Animated background pill
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutBack,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isSelected ? 16 : 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.tempYellow.withValues(alpha: 38)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Icon(
-                      isSelected ? item.activeIcon : item.icon,
-                      color:
-                          isSelected ? AppColors.tempYellow : AppColors.white60,
-                      size: 22 + (t * 2),
-                    ),
-                  ),
-
-                  // Badge
-                  if (badgeCount > 0)
-                    Positioned(
-                      top: -2,
-                      right: -2,
-                      child: Container(
-                        width: 16,
-                        height: 16,
-                        decoration: const BoxDecoration(
-                          color: AppColors.alertRed,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            '$badgeCount',
-                            style: const TextStyle(
-                              fontFamily: 'Rajdhani',
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-
-              // Label
-              AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 200),
-                style: TextStyle(
-                  fontFamily: 'Rajdhani',
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? AppColors.tempYellow : AppColors.white60,
-                  letterSpacing: isSelected ? 0.5 : 0,
-                ),
-                child: Text(item.label),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
 }
