@@ -22,14 +22,16 @@ class FetchWeatherByCoords extends WeatherEvent {
   final double lon;
   final String? cityName;
   final String? countryCode; // ← now passed in explicitly
+  final String? stateName;
   const FetchWeatherByCoords({
     required this.lat,
     required this.lon,
     this.cityName,
     this.countryCode,
+    this.stateName,
   });
   @override
-  List<Object?> get props => [lat, lon, cityName, countryCode];
+  List<Object?> get props => [lat, lon, cityName, countryCode, stateName];
 }
 
 class RefreshWeather extends WeatherEvent {
@@ -67,6 +69,7 @@ class WeatherRefreshing extends WeatherState {
   final AirQualityModel? airQuality;
   final String cityName;
   final String countryCode;
+  final String stateName;
   final double lat;
   final double lon;
   const WeatherRefreshing({
@@ -74,12 +77,13 @@ class WeatherRefreshing extends WeatherState {
     this.airQuality,
     required this.cityName,
     required this.countryCode,
+    required this.stateName,
     required this.lat,
     required this.lon,
   });
   @override
   List<Object?> get props =>
-      [weather, airQuality, cityName, countryCode, lat, lon];
+      [weather, airQuality, cityName, countryCode, stateName, lat, lon];
 }
 
 class WeatherLoaded extends WeatherState {
@@ -87,6 +91,7 @@ class WeatherLoaded extends WeatherState {
   final AirQualityModel? airQuality;
   final String cityName;
   final String countryCode;
+  final String stateName;
   final double lat;
   final double lon;
   final DateTime lastUpdated;
@@ -95,13 +100,22 @@ class WeatherLoaded extends WeatherState {
     this.airQuality,
     required this.cityName,
     required this.countryCode,
+    required this.stateName,
     required this.lat,
     required this.lon,
     required this.lastUpdated,
   });
   @override
-  List<Object?> get props =>
-      [weather, airQuality, cityName, countryCode, lat, lon, lastUpdated];
+  List<Object?> get props => [
+        weather,
+        airQuality,
+        cityName,
+        countryCode,
+        stateName,
+        lat,
+        lon,
+        lastUpdated,
+      ];
 }
 
 class WeatherError extends WeatherState {
@@ -138,6 +152,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
   double? _currentLon;
   String _currentCity = '';
   String _currentCountry = '';
+  String _currentState = '';
 
   WeatherBloc({required WeatherRepository repository})
       : _repository = repository,
@@ -166,6 +181,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
       );
       _currentCity = geo?.name ?? 'Your Location';
       _currentCountry = geo?.country ?? '';
+      _currentState = geo?.state ?? '';
 
       await _repository.addRecentLocation(
         GeocodingResult(
@@ -173,6 +189,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
           lat: _currentLat!,
           lon: _currentLon!,
           country: _currentCountry,
+          state: _currentState,
         ),
       );
 
@@ -197,12 +214,14 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
     // ← Use the name/country that came from the search result directly
     _currentCity = event.cityName ?? _currentCity;
     _currentCountry = event.countryCode ?? _currentCountry;
+    _currentState = event.stateName ?? _currentState;
     await _repository.addRecentLocation(
       GeocodingResult(
         name: _currentCity.isNotEmpty ? _currentCity : 'Selected Location',
         lat: _currentLat!,
         lon: _currentLon!,
         country: _currentCountry,
+        state: _currentState,
       ),
     );
     await _fetchAndEmit(emit);
@@ -224,6 +243,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
           airQuality: current.airQuality,
           cityName: current.cityName,
           countryCode: current.countryCode,
+          stateName: current.stateName,
           lat: current.lat,
           lon: current.lon,
         ),
@@ -280,6 +300,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
           airQuality: airQuality,
           cityName: _currentCity.isNotEmpty ? _currentCity : 'Your Location',
           countryCode: _currentCountry,
+          stateName: _currentState,
           lat: lat,
           lon: lon,
           lastUpdated: DateTime.now(),

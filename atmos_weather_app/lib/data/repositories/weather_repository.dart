@@ -292,13 +292,17 @@ class WeatherRepository {
           (first['name'] as String?) ??
           (first['formatted'] as String?) ??
           '';
+      final state = (first['state'] as String?) ??
+          (first['county'] as String?) ??
+          (first['region'] as String?) ??
+          (first['state_district'] as String?);
 
       return GeocodingResult(
         name: name,
         lat: (first['lat'] as num?)?.toDouble() ?? lat,
         lon: (first['lon'] as num?)?.toDouble() ?? lon,
         country: first['country'] as String? ?? '',
-        state: first['state'] as String?,
+        state: state,
       );
     } on DioException catch (e) {
       _logger.e('Geoapify reverse geocode error: ${e.message}');

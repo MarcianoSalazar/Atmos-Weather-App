@@ -155,7 +155,11 @@ class _MapScreenState extends State<MapScreen> {
                           point: LatLng(state.lat, state.lon),
                           width: 170,
                           height: 96,
-                          child: _LocationMarker(cityName: state.cityName),
+                          child: _LocationMarker(
+                            cityName: state.cityName,
+                            stateName: state.stateName,
+                            country: state.countryCode,
+                          ),
                         ),
                       ],
                     );
@@ -426,11 +430,21 @@ class _MapScreenState extends State<MapScreen> {
 
 class _LocationMarker extends StatelessWidget {
   final String cityName;
+  final String stateName;
+  final String country;
 
-  const _LocationMarker({required this.cityName});
+  const _LocationMarker({
+    required this.cityName,
+    required this.stateName,
+    required this.country,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final cityLabel =
+        stateName.trim().isNotEmpty ? '$cityName, $stateName' : cityName;
+    final locationDetail =
+        country.trim().isNotEmpty ? '$cityLabel\n$country' : cityLabel;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -446,7 +460,7 @@ class _LocationMarker extends StatelessWidget {
               ),
             ),
             child: Text(
-              cityName,
+              locationDetail,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               softWrap: true,

@@ -73,6 +73,7 @@ class _HomeScreenState extends State<HomeScreen>
               final airQuality = loaded?.airQuality ?? refreshing?.airQuality;
               final cityName = loaded?.cityName ?? refreshing!.cityName;
               final countryCode = loaded?.countryCode ?? '';
+              final stateName = loaded?.stateName ?? refreshing!.stateName;
               final isRefreshing = state is WeatherRefreshing;
 
               final current = weather.current;
@@ -108,6 +109,7 @@ class _HomeScreenState extends State<HomeScreen>
                           child: _buildHeader(
                             cityName,
                             countryCode,
+                            stateName,
                             isRefreshing,
                             textColor: textColor,
                             subColor: subColor,
@@ -170,12 +172,15 @@ class _HomeScreenState extends State<HomeScreen>
               onClose: () => setState(() => _showSearch = false),
               onLocationSelected: (result) {
                 setState(() => _showSearch = false);
-                context.read<WeatherBloc>().add(FetchWeatherByCoords(
-                      lat: result.lat,
-                      lon: result.lon,
-                      cityName: result.name,
-                      countryCode: result.country,
-                    ),);
+                context.read<WeatherBloc>().add(
+                      FetchWeatherByCoords(
+                        lat: result.lat,
+                        lon: result.lon,
+                        cityName: result.name,
+                        countryCode: result.country,
+                        stateName: result.state,
+                      ),
+                    );
               },
             ),
         ],
@@ -186,10 +191,14 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildHeader(
     String cityName,
     String country,
+    String stateName,
     bool isRefreshing, {
     required Color textColor,
     required Color subColor,
   }) {
+    final cityLabel =
+        stateName.trim().isNotEmpty ? '$cityName, $stateName' : cityName;
+    final locationDetail = country.trim();
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       child: Row(
@@ -211,12 +220,15 @@ class _HomeScreenState extends State<HomeScreen>
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    const Icon(Icons.location_on,
-                        color: AppColors.tempYellow, size: 17,),
+                    const Icon(
+                      Icons.location_on,
+                      color: AppColors.tempYellow,
+                      size: 17,
+                    ),
                     const SizedBox(width: 3),
                     Flexible(
                       child: Text(
-                        cityName,
+                        cityLabel,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontFamily: 'Rajdhani',
@@ -227,18 +239,20 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ),
                     ),
-                    if (country.isNotEmpty) ...[
+                    if (locationDetail.isNotEmpty) ...[
                       const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2,),
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           // ignore: deprecated_member_use
                           color: Colors.white.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(5),
                         ),
                         child: Text(
-                          country,
+                          locationDetail,
                           style: TextStyle(
                             fontFamily: 'Rajdhani',
                             fontSize: 11,
