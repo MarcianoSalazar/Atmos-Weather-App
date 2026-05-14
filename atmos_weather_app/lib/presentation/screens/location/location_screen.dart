@@ -301,36 +301,47 @@ class _LocationScreenState extends State<LocationScreen>
     super.build(context);
     return Scaffold(
       backgroundColor: AppColors.primaryDeep,
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppColors.skyGradient),
-        child: SafeArea(
-          child: GestureDetector(
-            onTap: () {
-              _searchFocus.unfocus();
-              if (_searchCtrl.text.isEmpty) {
-                setState(() {
-                  _showResults = false;
-                  _searchResults = [];
-                });
-              }
-            },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(),
-                _buildSearchBar(),
-                Expanded(
-                  child: _showResults
-                      ? _buildSearchResults()
-                      : _loading
-                          ? const Center(
-                              child: CircularProgressIndicator(
-                                color: AppColors.primaryAccent,
+      body: BlocListener<WeatherBloc, WeatherState>(
+        listener: (context, state) {
+          if (state is WeatherLoaded || state is WeatherRefreshing) {
+            _syncFromBloc(state);
+          }
+        },
+        child: Container(
+          decoration: const BoxDecoration(gradient: AppColors.skyGradient),
+          child: SafeArea(
+            child: GestureDetector(
+              onTap: () {
+                _searchFocus.unfocus();
+                if (_searchCtrl.text.isEmpty) {
+                  setState(() {
+                    _showResults = false;
+                    _searchResults = [];
+                  });
+                }
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(),
+                  _buildSearchBar(),
+                  Expanded(
+                    child: _showResults
+                        ? _buildSearchResults()
+                        : _loading
+                            ? const Center(
+                                child: CircularProgressIndicator(
+                                  color: AppColors.primaryAccent,
+                                ),
+                              )
+                            : BlocBuilder<WeatherBloc, WeatherState>(
+                                builder: (context, state) {
+                                  return _buildLocationList(state);
+                                },
                               ),
-                            )
-                          : _buildLocationList(),
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -464,8 +475,7 @@ class _LocationScreenState extends State<LocationScreen>
   }
 
   // ─── Full location list ────────────────────────────────────────────────────
-  Widget _buildLocationList() {
-    final blocState = context.read<WeatherBloc>().state;
+  Widget _buildLocationList(WeatherState blocState) {
     final currentLat = blocState is WeatherLoaded ? blocState.lat : null;
     final currentLon = blocState is WeatherLoaded ? blocState.lon : null;
     final currentCity = blocState is WeatherLoaded ? blocState.cityName : null;
@@ -521,8 +531,12 @@ class _LocationScreenState extends State<LocationScreen>
                 location: loc,
                 weather: _weatherCache[key],
                 onTap: () => _goToWeather(
-                    loc.lat, loc.lon, loc.name, loc.country,
-                    state: loc.state,),
+                  loc.lat,
+                  loc.lon,
+                  loc.name,
+                  loc.country,
+                  state: loc.state,
+                ),
                 onDelete: () => _removeLocation(loc.id),
                 onSetHome: () => _setHome(loc.id),
               ).animate().fadeIn(duration: 300.ms, delay: (e.key * 60).ms);
@@ -539,8 +553,13 @@ class _LocationScreenState extends State<LocationScreen>
               return _RecentLocationCard(
                 result: r,
                 weather: _weatherCache[key],
-                onTap: () => _goToWeather(r.lat, r.lon, r.name, r.country,
-                    state: r.state,),
+                onTap: () => _goToWeather(
+                  r.lat,
+                  r.lon,
+                  r.name,
+                  r.country,
+                  state: r.state,
+                ),
                 onSave: _saved.any(
                   (s) =>
                       (s.lat - r.lat).abs() < 0.01 &&
@@ -591,6 +610,33 @@ class _LocationScreenState extends State<LocationScreen>
         ],
       ),
     );
+  }
+
+  Future<void> _syncFromBloc(WeatherState blocState) async {
+    if (_repo == null || !mounted) return;
+    final recent = _repo!.getRecentLocations();
+    final savedKeys = _saved.map((s) => _locKey(s.lat, s.lon)).toSet();
+    final dedupedRecent = _dedupeRecent(recent, savedKeys);
+    _recentLocations = dedupedRecent;
+    await _persistRecent(dedupedRecent);
+
+    if (blocState is WeatherLoaded) {
+      final lat = blocState.lat;
+      final lon = blocState.lon;
+      final key = '${lat}_$lon';
+      if (!_weatherCache.containsKey(key)) {
+        await _fetchWeatherForKey(lat, lon);
+      }
+    } else if (blocState is WeatherRefreshing) {
+      final lat = blocState.lat;
+      final lon = blocState.lon;
+      final key = '${lat}_$lon';
+      if (!_weatherCache.containsKey(key)) {
+        await _fetchWeatherForKey(lat, lon);
+      }
+    }
+
+    if (mounted) setState(() {});
   }
 
   String _formatCityState(String city, String? state) {
