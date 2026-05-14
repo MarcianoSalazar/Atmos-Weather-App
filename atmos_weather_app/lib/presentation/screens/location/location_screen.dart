@@ -522,7 +522,7 @@ class _LocationScreenState extends State<LocationScreen>
                 weather: _weatherCache[key],
                 onTap: () => _goToWeather(
                     loc.lat, loc.lon, loc.name, loc.country,
-                    state: loc.state),
+                    state: loc.state,),
                 onDelete: () => _removeLocation(loc.id),
                 onSetHome: () => _setHome(loc.id),
               ).animate().fadeIn(duration: 300.ms, delay: (e.key * 60).ms);
@@ -540,7 +540,7 @@ class _LocationScreenState extends State<LocationScreen>
                 result: r,
                 weather: _weatherCache[key],
                 onTap: () => _goToWeather(r.lat, r.lon, r.name, r.country,
-                    state: r.state),
+                    state: r.state,),
                 onSave: _saved.any(
                   (s) =>
                       (s.lat - r.lat).abs() < 0.01 &&
