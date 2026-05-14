@@ -49,6 +49,7 @@ class AppConstants {
   static const String hourlyForecastCache = 'hourly_forecast';
   static const String dailyForecastCache = 'daily_forecast';
   static const String savedLocationsKey = 'saved_locations';
+  static const String recentLocationsKey = 'recent_locations';
   static const String settingsKey = 'app_settings';
   static const String alertsKey = 'weather_alerts';
 
