@@ -4,17 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
-import '../../bloc/weather/weather_bloc.dart';
-import '../../widgets/weather/current_weather_card.dart';
-import '../../widgets/weather/hourly_forecast_widget.dart';
-import '../../widgets/weather/daily_forecast_widget.dart';
-import '../../widgets/weather/weather_details_grid.dart';
-import '../../widgets/weather/air_quality_card.dart';
-import '../../widgets/weather/search_overlay.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../core/utils/settings_controller.dart';
-import '../../../core/utils/weather_utils.dart';
-import '../../../data/models/weather_model.dart';
+import 'package:atmos/presentation/bloc/weather/weather_bloc.dart';
+import 'package:atmos/presentation/widgets/weather/current_weather_card.dart';
+import 'package:atmos/presentation/widgets/weather/hourly_forecast_widget.dart';
+import 'package:atmos/presentation/widgets/weather/daily_forecast_widget.dart';
+import 'package:atmos/presentation/widgets/weather/weather_details_grid.dart';
+import 'package:atmos/presentation/widgets/weather/air_quality_card.dart';
+import 'package:atmos/presentation/widgets/weather/search_overlay.dart';
+import 'package:atmos/core/theme/app_theme.dart';
+import 'package:atmos/core/utils/settings_controller.dart';
+import 'package:atmos/core/utils/weather_utils.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -30,25 +29,25 @@ class _HomeScreenState extends State<HomeScreen>
   final ScrollController _scrollController = ScrollController();
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   void initState() {
     super.initState();
-    _settingsController.addListener(_handleSettingsUpdate);
-    _settingsController.load();
-    final state = context.read<WeatherBloc>().state;
-    if (state is WeatherInitial) {
-      context.read<WeatherBloc>().add(const FetchWeatherByLocation());
+    _settingsController.addListener(_onSettingsChanged);
+    final bloc = context.read<WeatherBloc>();
+    if (bloc.state is WeatherInitial) {
+      bloc.add(const FetchWeatherByLocation());
     }
   }
 
+  void _onSettingsChanged() => setState(() {});
+
   @override
   void dispose() {
+    _settingsController.removeListener(_onSettingsChanged);
     _scrollController.dispose();
-    _settingsController.removeListener(_handleSettingsUpdate);
     super.dispose();
-  }
-
-  void _handleSettingsUpdate() {
-    if (mounted) setState(() {});
   }
 
   @override
@@ -60,33 +59,112 @@ class _HomeScreenState extends State<HomeScreen>
         children: [
           BlocBuilder<WeatherBloc, WeatherState>(
             builder: (context, state) {
-              if (state is WeatherLoading) {
-                return _buildLoadingState();
-              }
-              if (state is WeatherError) {
-                return _buildErrorState(state);
-              }
-              if (state is WeatherLoaded || state is WeatherRefreshing) {
-                final loaded = state is WeatherLoaded ? state : null;
-                final refreshing = state is WeatherRefreshing ? state : null;
-                final weather = loaded?.weather ?? refreshing!.weather;
-                final airQuality = loaded?.airQuality ?? refreshing?.airQuality;
-                final cityName = loaded?.cityName ?? refreshing!.cityName;
-                final country = loaded?.countryCode ?? '';
+              if (state is WeatherLoading) return _buildLoadingState();
+              if (state is WeatherError) return _buildErrorState(state);
 
-                return _buildLoadedState(
-                  weather: weather,
-                  airQuality: airQuality,
-                  cityName: cityName,
-                  country: country,
-                  isRefreshing: state is WeatherRefreshing,
-                );
+              final loaded = state is WeatherLoaded ? state : null;
+              final refreshing = state is WeatherRefreshing ? state : null;
+
+              if (loaded == null && refreshing == null) {
+                return _buildInitialState();
               }
-              return _buildInitialState();
+
+              final weather = loaded?.weather ?? refreshing!.weather;
+              final airQuality = loaded?.airQuality ?? refreshing?.airQuality;
+              final cityName = loaded?.cityName ?? refreshing!.cityName;
+              final countryCode = loaded?.countryCode ?? '';
+              final isRefreshing = state is WeatherRefreshing;
+
+              final current = weather.current;
+              final weatherCode = current?.weatherCode ?? 0;
+              final isDay = (current?.isDay ?? 1) == 1;
+              final gradient =
+                  WeatherUtils.getWeatherGradient(weatherCode, isDay: isDay);
+              final settings = _settingsController.settings;
+
+              // Determine text color based on gradient brightness
+              // Our gradients are all dark so white text is always safe
+              const textColor = AppColors.white;
+              const subColor = AppColors.white80;
+
+              return Container(
+                decoration: BoxDecoration(gradient: gradient),
+                child: SafeArea(
+                  bottom: false,
+                  child: RefreshIndicator(
+                    onRefresh: () async {
+                      context.read<WeatherBloc>().add(const RefreshWeather());
+                      await Future<void>.delayed(const Duration(seconds: 1));
+                    },
+                    color: AppColors.tempYellow,
+                    backgroundColor: AppColors.primaryDark,
+                    child: CustomScrollView(
+                      controller: _scrollController,
+                      physics: const BouncingScrollPhysics(
+                        parent: AlwaysScrollableScrollPhysics(),
+                      ),
+                      slivers: [
+                        SliverToBoxAdapter(
+                          child: _buildHeader(
+                            cityName,
+                            countryCode,
+                            isRefreshing,
+                            textColor: textColor,
+                            subColor: subColor,
+                          ),
+                        ),
+                        if (current != null) ...[
+                          SliverToBoxAdapter(
+                            child: CurrentWeatherCard(
+                              current: current,
+                              cityName: cityName,
+                              weatherCode: weatherCode,
+                              isDay: isDay,
+                              settings: settings,
+                            )
+                                .animate()
+                                .fadeIn(duration: 400.ms)
+                                .slideY(begin: 0.15),
+                          ),
+                          if (weather.hourly != null)
+                            SliverToBoxAdapter(
+                              child: HourlyForecastWidget(
+                                hourlyData: weather.hourly!,
+                                settings: settings,
+                              )
+                                  .animate()
+                                  .fadeIn(duration: 500.ms, delay: 80.ms),
+                            ),
+                          SliverToBoxAdapter(
+                            child: WeatherDetailsGrid(
+                              current: current,
+                              settings: settings,
+                            ).animate().fadeIn(duration: 500.ms, delay: 160.ms),
+                          ),
+                          if (airQuality != null && settings.showAQI)
+                            SliverToBoxAdapter(
+                              child: AirQualityCard(airQuality: airQuality)
+                                  .animate()
+                                  .fadeIn(duration: 500.ms, delay: 240.ms),
+                            ),
+                          if (weather.daily != null)
+                            SliverToBoxAdapter(
+                              child: DailyForecastWidget(
+                                dailyData: weather.daily!,
+                                settings: settings,
+                              )
+                                  .animate()
+                                  .fadeIn(duration: 500.ms, delay: 320.ms),
+                            ),
+                        ],
+                        const SliverToBoxAdapter(child: SizedBox(height: 110)),
+                      ],
+                    ),
+                  ),
+                ),
+              );
             },
           ),
-
-          // Search overlay
           if (_showSearch)
             SearchOverlay(
               onClose: () => setState(() => _showSearch = false),
@@ -96,6 +174,7 @@ class _HomeScreenState extends State<HomeScreen>
                       lat: result.lat,
                       lon: result.lon,
                       cityName: result.name,
+                      countryCode: result.country,
                     ),);
               },
             ),
@@ -104,132 +183,48 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  @override
-  bool get wantKeepAlive => true;
-
-  Widget _buildLoadedState({
-    required OpenMeteoModel weather,
-    AirQualityModel? airQuality,
-    required String cityName,
-    required String country,
-    required bool isRefreshing,
+  Widget _buildHeader(
+    String cityName,
+    String country,
+    bool isRefreshing, {
+    required Color textColor,
+    required Color subColor,
   }) {
-    final current = weather.current!;
-    final isDay = current.isDay == 1;
-    final weatherCode = current.weatherCode;
-    final gradient = WeatherUtils.getWeatherGradient(weatherCode, isDay: isDay);
-    final settings = _settingsController.settings;
-
-    return Container(
-      decoration: BoxDecoration(gradient: gradient),
-      child: SafeArea(
-        bottom: false,
-        child: RefreshIndicator(
-          onRefresh: () async {
-            context.read<WeatherBloc>().add(const RefreshWeather());
-            await Future<void>.delayed(const Duration(seconds: 1));
-          },
-          color: AppColors.tempYellow,
-          backgroundColor: AppColors.primaryDark,
-          child: CustomScrollView(
-            controller: _scrollController,
-            physics: const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
-            ),
-            slivers: [
-              // Header
-              SliverToBoxAdapter(
-                child: _buildHeader(cityName, country, isRefreshing),
-              ),
-
-              // Current Weather
-              SliverToBoxAdapter(
-                child: CurrentWeatherCard(
-                  current: current,
-                  cityName: cityName,
-                  weatherCode: weatherCode,
-                  isDay: isDay,
-                  settings: settings,
-                ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.2),
-              ),
-
-              // Hourly Forecast
-              SliverToBoxAdapter(
-                child: HourlyForecastWidget(
-                  hourlyData: weather.hourly!,
-                  settings: settings,
-                ).animate().fadeIn(duration: 500.ms, delay: 100.ms),
-              ),
-
-              // Weather Details Grid
-              SliverToBoxAdapter(
-                child: WeatherDetailsGrid(
-                  current: current,
-                  settings: settings,
-                ).animate().fadeIn(duration: 500.ms, delay: 200.ms),
-              ),
-
-              // Air Quality Card
-              if (airQuality != null)
-                SliverToBoxAdapter(
-                  child: AirQualityCard(
-                    airQuality: airQuality,
-                  ).animate().fadeIn(duration: 500.ms, delay: 300.ms),
-                ),
-
-              // Daily Forecast
-              SliverToBoxAdapter(
-                child: DailyForecastWidget(
-                  dailyData: weather.daily!,
-                  settings: settings,
-                ).animate().fadeIn(duration: 500.ms, delay: 400.ms),
-              ),
-
-              // Bottom padding for nav bar
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(String cityName, String country, bool isRefreshing) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       child: Row(
         children: [
-          // Location
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   DateFormat('EEEE, MMM d').format(DateTime.now()),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Rajdhani',
                     fontSize: 13,
-                    color: AppColors.white60,
-                    letterSpacing: 1.0,
+                    // ignore: deprecated_member_use
+                    color: subColor.withOpacity(0.7),
+                    letterSpacing: 0.8,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    const Icon(
-                      Icons.location_on,
-                      color: AppColors.tempYellow,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      cityName,
-                      style: const TextStyle(
-                        fontFamily: 'Rajdhani',
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.white,
-                        letterSpacing: 0.5,
+                    const Icon(Icons.location_on,
+                        color: AppColors.tempYellow, size: 17,),
+                    const SizedBox(width: 3),
+                    Flexible(
+                      child: Text(
+                        cityName,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Rajdhani',
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: textColor,
+                          letterSpacing: 0.3,
+                        ),
                       ),
                     ),
                     if (country.isNotEmpty) ...[
@@ -238,29 +233,31 @@ class _HomeScreenState extends State<HomeScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2,),
                         decoration: BoxDecoration(
-                          color: AppColors.white20,
-                          borderRadius: BorderRadius.circular(4),
+                          // ignore: deprecated_member_use
+                          color: Colors.white.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(5),
                         ),
                         child: Text(
                           country,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'Rajdhani',
                             fontSize: 11,
-                            color: AppColors.white80,
-                            letterSpacing: 0.5,
+                            color: subColor,
+                            letterSpacing: 0.4,
                           ),
                         ),
                       ),
                     ],
                     if (isRefreshing)
-                      const Padding(
-                        padding: EdgeInsets.only(left: 8),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
                         child: SizedBox(
                           width: 12,
                           height: 12,
                           child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.white60,
+                            strokeWidth: 1.5,
+                            // ignore: deprecated_member_use
+                            color: subColor.withOpacity(0.6),
                           ),
                         ),
                       ),
@@ -269,24 +266,16 @@ class _HomeScreenState extends State<HomeScreen>
               ],
             ),
           ),
-
-          // Actions
-          Row(
-            children: [
-              _HeaderButton(
-                icon: Icons.search_rounded,
-                onTap: () => setState(() => _showSearch = true),
-              ),
-              const SizedBox(width: 8),
-              _HeaderButton(
-                icon: Icons.my_location_rounded,
-                onTap: () {
-                  context
-                      .read<WeatherBloc>()
-                      .add(const FetchWeatherByLocation());
-                },
-              ),
-            ],
+          const SizedBox(width: 8),
+          _HeaderBtn(
+            icon: Icons.search_rounded,
+            onTap: () => setState(() => _showSearch = true),
+          ),
+          const SizedBox(width: 8),
+          _HeaderBtn(
+            icon: Icons.my_location_rounded,
+            onTap: () =>
+                context.read<WeatherBloc>().add(const FetchWeatherByLocation()),
           ),
         ],
       ),
@@ -301,27 +290,27 @@ class _HomeScreenState extends State<HomeScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             SizedBox(
-              width: 60,
-              height: 60,
+              width: 56,
+              height: 56,
               child: CircularProgressIndicator(
                 color: AppColors.tempYellow,
-                strokeWidth: 3,
+                strokeWidth: 2.5,
               ),
             ),
-            SizedBox(height: 24),
+            SizedBox(height: 28),
             Text(
               'ATMOS',
               style: TextStyle(
                 fontFamily: 'Rajdhani',
-                fontSize: 36,
+                fontSize: 38,
                 fontWeight: FontWeight.w700,
                 color: AppColors.white,
-                letterSpacing: 8,
+                letterSpacing: 10,
               ),
             ),
             SizedBox(height: 8),
             Text(
-              'Fetching weather data...',
+              'Fetching weather data…',
               style: TextStyle(
                 fontFamily: 'Rajdhani',
                 fontSize: 14,
@@ -344,8 +333,11 @@ class _HomeScreenState extends State<HomeScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.cloud_off_rounded,
-                  color: AppColors.white60, size: 72,),
+              const Icon(
+                Icons.cloud_off_rounded,
+                color: AppColors.white60,
+                size: 72,
+              ),
               const SizedBox(height: 24),
               const Text(
                 'Unable to fetch weather',
@@ -368,11 +360,9 @@ class _HomeScreenState extends State<HomeScreen>
               ),
               const SizedBox(height: 32),
               ElevatedButton.icon(
-                onPressed: () {
-                  context
-                      .read<WeatherBloc>()
-                      .add(const FetchWeatherByLocation());
-                },
+                onPressed: () => context
+                    .read<WeatherBloc>()
+                    .add(const FetchWeatherByLocation()),
                 icon: const Icon(Icons.refresh_rounded),
                 label: const Text('TRY AGAIN'),
               ),
@@ -394,7 +384,7 @@ class _HomeScreenState extends State<HomeScreen>
             fontSize: 48,
             fontWeight: FontWeight.w700,
             color: AppColors.white,
-            letterSpacing: 12,
+            letterSpacing: 14,
           ),
         ),
       ),
@@ -402,11 +392,11 @@ class _HomeScreenState extends State<HomeScreen>
   }
 }
 
-class _HeaderButton extends StatelessWidget {
+class _HeaderBtn extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
 
-  const _HeaderButton({required this.icon, required this.onTap});
+  const _HeaderBtn({required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -416,9 +406,11 @@ class _HeaderButton extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: AppColors.white10,
+          // ignore: deprecated_member_use
+          color: Colors.black.withOpacity(0.25),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.white20),
+          // ignore: deprecated_member_use
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
         ),
         child: Icon(icon, color: AppColors.white, size: 20),
       ),
