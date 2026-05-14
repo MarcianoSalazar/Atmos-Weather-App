@@ -73,9 +73,25 @@ class _LocationScreenState extends State<LocationScreen>
       } catch (_) {}
     }
 
+    final dedupedSaved = _dedupeSaved(_saved);
+    if (dedupedSaved.length != _saved.length) {
+      _saved = dedupedSaved;
+      await prefs.setString(
+        AppConstants.savedLocationsKey,
+        jsonEncode(_saved.map((s) => s.toJson()).toList()),
+      );
+    }
+
     // Recent history
     if (_repo != null) {
       _recentLocations = _repo!.getRecentLocations();
+    }
+
+    final savedKeys = _saved.map((s) => _locKey(s.lat, s.lon)).toSet();
+    final dedupedRecent = _dedupeRecent(_recentLocations, savedKeys);
+    if (dedupedRecent.length != _recentLocations.length) {
+      _recentLocations = dedupedRecent;
+      await _persistRecent(dedupedRecent);
     }
 
     if (mounted) setState(() => _loading = false);
@@ -184,6 +200,7 @@ class _LocationScreenState extends State<LocationScreen>
             lon: result.lon,
             cityName: result.name,
             countryCode: result.country,
+            stateName: result.state,
           ),
         );
     _addToRecent(result);
@@ -211,7 +228,9 @@ class _LocationScreenState extends State<LocationScreen>
   Future<void> _addToRecent(GeocodingResult result) async {
     if (_repo == null) return;
     await _repo!.addRecentLocation(result);
-    _recentLocations = _repo!.getRecentLocations();
+    final savedKeys = _saved.map((s) => _locKey(s.lat, s.lon)).toSet();
+    _recentLocations = _dedupeRecent(_repo!.getRecentLocations(), savedKeys);
+    await _persistRecent(_recentLocations);
     if (mounted) setState(() {});
   }
 
@@ -249,13 +268,20 @@ class _LocationScreenState extends State<LocationScreen>
   }
 
   // ─── Navigate to city weather ──────────────────────────────────────────────
-  void _goToWeather(double lat, double lon, String name, String country) {
+  void _goToWeather(
+    double lat,
+    double lon,
+    String name,
+    String country, {
+    String? state,
+  }) {
     context.read<WeatherBloc>().add(
           FetchWeatherByCoords(
             lat: lat,
             lon: lon,
             cityName: name,
             countryCode: country,
+            stateName: state,
           ),
         );
     final shell = context.findAncestorStateOfType<MainShellState>();
@@ -445,6 +471,11 @@ class _LocationScreenState extends State<LocationScreen>
     final currentCity = blocState is WeatherLoaded ? blocState.cityName : null;
     final currentCountry =
         blocState is WeatherLoaded ? blocState.countryCode : null;
+    final currentState =
+        blocState is WeatherLoaded ? blocState.stateName : null;
+    final currentLabel = currentCity != null
+        ? _formatCityState(currentCity, currentState)
+        : null;
     final currentKey = currentLat != null ? '${currentLat}_$currentLon' : null;
     final currentWeather =
         currentKey != null ? _weatherCache[currentKey] : null;
@@ -463,8 +494,9 @@ class _LocationScreenState extends State<LocationScreen>
           if (currentLat != null) ...[
             const _SectionLabel(label: 'CURRENT LOCATION'),
             _CurrentLocationCard(
-              cityName: currentCity ?? 'Your Location',
+              cityName: currentLabel ?? 'Your Location',
               country: currentCountry ?? '',
+              stateName: currentState,
               lat: currentLat,
               lon: currentLon!,
               weather: currentWeather,
@@ -473,6 +505,7 @@ class _LocationScreenState extends State<LocationScreen>
                 currentLon,
                 currentCity ?? '',
                 currentCountry ?? '',
+                state: currentState,
               ),
             ).animate().fadeIn(duration: 300.ms),
             const SizedBox(height: 16),
@@ -487,8 +520,9 @@ class _LocationScreenState extends State<LocationScreen>
               return _SavedLocationCard(
                 location: loc,
                 weather: _weatherCache[key],
-                onTap: () =>
-                    _goToWeather(loc.lat, loc.lon, loc.name, loc.country),
+                onTap: () => _goToWeather(
+                    loc.lat, loc.lon, loc.name, loc.country,
+                    state: loc.state),
                 onDelete: () => _removeLocation(loc.id),
                 onSetHome: () => _setHome(loc.id),
               ).animate().fadeIn(duration: 300.ms, delay: (e.key * 60).ms);
@@ -505,7 +539,8 @@ class _LocationScreenState extends State<LocationScreen>
               return _RecentLocationCard(
                 result: r,
                 weather: _weatherCache[key],
-                onTap: () => _goToWeather(r.lat, r.lon, r.name, r.country),
+                onTap: () => _goToWeather(r.lat, r.lon, r.name, r.country,
+                    state: r.state),
                 onSave: _saved.any(
                   (s) =>
                       (s.lat - r.lat).abs() < 0.01 &&
@@ -557,6 +592,60 @@ class _LocationScreenState extends State<LocationScreen>
       ),
     );
   }
+
+  String _formatCityState(String city, String? state) {
+    final trimmedState = state?.trim() ?? '';
+    return trimmedState.isNotEmpty ? '$city, $trimmedState' : city;
+  }
+
+  String _locKey(double lat, double lon) {
+    return '${lat.toStringAsFixed(4)}_${lon.toStringAsFixed(4)}';
+  }
+
+  List<SavedLocation> _dedupeSaved(List<SavedLocation> saved) {
+    final seen = <String>{};
+    final result = <SavedLocation>[];
+    for (final loc in saved) {
+      if (!seen.add(loc.id)) continue;
+      result.add(loc);
+    }
+    return result;
+  }
+
+  List<GeocodingResult> _dedupeRecent(
+    List<GeocodingResult> recent,
+    Set<String> savedKeys,
+  ) {
+    final seen = <String>{};
+    final result = <GeocodingResult>[];
+    for (final loc in recent) {
+      final key = _locKey(loc.lat, loc.lon);
+      if (savedKeys.contains(key)) continue;
+      if (!seen.add(key)) continue;
+      result.add(loc);
+    }
+    return result;
+  }
+
+  Future<void> _persistRecent(List<GeocodingResult> recent) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      AppConstants.recentLocationsKey,
+      jsonEncode(
+        recent
+            .map(
+              (r) => {
+                'name': r.name,
+                'lat': r.lat,
+                'lon': r.lon,
+                'country': r.country,
+                'state': r.state,
+              },
+            )
+            .toList(),
+      ),
+    );
+  }
 }
 
 // ─── Section label ────────────────────────────────────────────────────────────
@@ -586,6 +675,7 @@ class _SectionLabel extends StatelessWidget {
 class _CurrentLocationCard extends StatelessWidget {
   final String cityName;
   final String country;
+  final String? stateName;
   final double lat;
   final double lon;
   final OpenMeteoModel? weather;
@@ -594,6 +684,7 @@ class _CurrentLocationCard extends StatelessWidget {
   const _CurrentLocationCard({
     required this.cityName,
     required this.country,
+    this.stateName,
     required this.lat,
     required this.lon,
     required this.weather,
@@ -608,6 +699,7 @@ class _CurrentLocationCard extends StatelessWidget {
     final gradient = WeatherUtils.getWeatherGradient(code, isDay: isDay);
     final now = DateTime.now();
     final tz = weather?.timezone ?? '';
+    final locationDetail = country.trim();
 
     return GestureDetector(
       onTap: onTap,
@@ -652,7 +744,7 @@ class _CurrentLocationCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    country,
+                    locationDetail,
                     style: const TextStyle(
                       fontFamily: 'Rajdhani',
                       fontSize: 13,
@@ -791,6 +883,11 @@ class _SavedLocationCard extends StatelessWidget {
     final code = current?.weatherCode ?? 0;
     final isDay = (current?.isDay ?? 1) == 1;
     final gradient = WeatherUtils.getWeatherGradient(code, isDay: isDay);
+    final cityLabel =
+        location.state != null && location.state!.trim().isNotEmpty
+            ? '${location.name}, ${location.state}'
+            : location.name;
+    final countryLabel = location.country.trim();
 
     return GestureDetector(
       onTap: onTap,
@@ -829,7 +926,7 @@ class _SavedLocationCard extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        location.name,
+                        cityLabel,
                         style: const TextStyle(
                           fontFamily: 'Rajdhani',
                           fontSize: 17,
@@ -866,9 +963,7 @@ class _SavedLocationCard extends StatelessWidget {
                     ],
                   ),
                   Text(
-                    location.state != null
-                        ? '${location.state}, ${location.country}'
-                        : location.country,
+                    countryLabel,
                     style: const TextStyle(
                       fontFamily: 'Rajdhani',
                       fontSize: 12,
@@ -1006,6 +1101,10 @@ class _RecentLocationCard extends StatelessWidget {
     final current = weather?.current;
     final code = current?.weatherCode ?? 0;
     final isDay = (current?.isDay ?? 1) == 1;
+    final cityLabel = result.state != null && result.state!.trim().isNotEmpty
+        ? '${result.name}, ${result.state}'
+        : result.name;
+    final countryLabel = result.country.trim();
 
     return GestureDetector(
       onTap: onTap,
@@ -1030,7 +1129,7 @@ class _RecentLocationCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    result.name,
+                    cityLabel,
                     style: const TextStyle(
                       fontFamily: 'Rajdhani',
                       fontSize: 15,
@@ -1039,9 +1138,7 @@ class _RecentLocationCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    result.state != null
-                        ? '${result.state}, ${result.country}'
-                        : result.country,
+                    countryLabel,
                     style: const TextStyle(
                       fontFamily: 'Rajdhani',
                       fontSize: 12,
@@ -1115,6 +1212,10 @@ class _SearchResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cityLabel = result.state != null && result.state!.trim().isNotEmpty
+        ? '${result.name}, ${result.state}'
+        : result.name;
+    final countryLabel = result.country.trim();
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(14),
@@ -1147,7 +1248,7 @@ class _SearchResultCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      result.name,
+                      cityLabel,
                       style: const TextStyle(
                         fontFamily: 'Rajdhani',
                         fontSize: 16,
@@ -1156,9 +1257,7 @@ class _SearchResultCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      result.state != null
-                          ? '${result.state}, ${result.country}'
-                          : result.country,
+                      countryLabel,
                       style: const TextStyle(
                         fontFamily: 'Rajdhani',
                         fontSize: 12,
