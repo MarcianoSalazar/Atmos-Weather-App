@@ -642,8 +642,7 @@ class _LocationScreenState extends State<LocationScreen>
   }
 
   String _formatCityState(String city, String? state) {
-    final trimmedState = state?.trim() ?? '';
-    return trimmedState.isNotEmpty ? '$city, $trimmedState' : city;
+    return LocationLabelFormatter.cityLine(city, state);
   }
 
   String _locKey(double lat, double lon) {
@@ -667,9 +666,19 @@ class _LocationScreenState extends State<LocationScreen>
     final seen = <String>{};
     final result = <GeocodingResult>[];
     for (final loc in recent) {
-      final key = _locKey(loc.lat, loc.lon);
-      if (savedKeys.contains(key)) continue;
-      if (!seen.add(key)) continue;
+      // 2-decimal key (~1 km grid) prevents GPS-drift duplicates
+      const roundedKey =
+          '\${loc.lat.toStringAsFixed(2)}_\${loc.lon.toStringAsFixed(2)}';
+      // Skip if already in saved locations (fuzzy match within ~1 km)
+      final inSaved = savedKeys.any((sk) {
+        final parts = sk.split('_');
+        if (parts.length < 2) return false;
+        final slat = double.tryParse(parts[0]) ?? 0;
+        final slon = double.tryParse(parts[1]) ?? 0;
+        return (slat - loc.lat).abs() < 0.01 && (slon - loc.lon).abs() < 0.01;
+      });
+      if (inSaved) continue;
+      if (!seen.add(roundedKey)) continue;
       result.add(loc);
     }
     return result;
@@ -697,6 +706,70 @@ class _LocationScreenState extends State<LocationScreen>
 }
 
 // ─── Section label ────────────────────────────────────────────────────────────
+
+// ─── Location label formatter ─────────────────────────────────────────────────
+/// Centralised logic for turning raw geocoding fields into clean display labels.
+///
+/// Handles cases such as:
+///   city="Tokyo", state="Tokyo"                    → "Tokyo"
+///   city="Manila", state="National Capital Region" → "Manila, NCR"
+///   city="Calauan", state="Calabarzon"             → "Calauan" (region too broad)
+///   city="Lipa", state="Calabarzon", admin2="Batangas" → "Lipa, Batangas"
+class LocationLabelFormatter {
+  static const _phRegionMap = <String, String?>{
+    'calabarzon': null,
+    'ncr': 'NCR',
+    'national capital region': 'NCR',
+    'metro manila': 'NCR',
+    'cordillera administrative region': 'CAR',
+    'car': 'CAR',
+    'ilocos region': 'Region I',
+    'cagayan valley': 'Region II',
+    'central luzon': 'Region III',
+    'mimaropa': 'MIMAROPA',
+    'bicol region': 'Bicol',
+    'western visayas': 'W. Visayas',
+    'central visayas': 'C. Visayas',
+    'eastern visayas': 'E. Visayas',
+    'zamboanga peninsula': 'Zamboanga',
+    'northern mindanao': 'N. Mindanao',
+    'davao region': 'Davao',
+    'soccsksargen': 'SOCCSKSARGEN',
+    'caraga': 'CARAGA',
+    'barmm': 'BARMM',
+    'bangsamoro': 'BARMM',
+  };
+
+  /// Builds the city-line label, e.g. "Lipa, Batangas" or "Tokyo".
+  /// [admin2] is the finer province/district level field when the API exposes it.
+  static String cityLine(String city, String? state, {String? admin2}) {
+    final cityClean = city.trim();
+
+    // Prefer admin2 (province) over state (region)
+    if (admin2 != null && admin2.trim().isNotEmpty) {
+      final a2 = admin2.trim();
+      if (!_same(cityClean, a2)) return '$cityClean, $a2';
+    }
+
+    final stateClean = state?.trim() ?? '';
+    if (stateClean.isEmpty) return cityClean;
+    if (_same(cityClean, stateClean)) return cityClean;
+
+    final mapped = _mapState(stateClean);
+    if (mapped == null) return cityClean; // region too coarse
+    return '$cityClean, $mapped';
+  }
+
+  static bool _same(String a, String b) =>
+      a.trim().toLowerCase() == b.trim().toLowerCase();
+
+  static String? _mapState(String state) {
+    final key = state.trim().toLowerCase();
+    if (_phRegionMap.containsKey(key)) return _phRegionMap[key];
+    return state;
+  }
+}
+
 class _SectionLabel extends StatelessWidget {
   final String label;
   const _SectionLabel({required this.label});
@@ -932,9 +1005,7 @@ class _SavedLocationCard extends StatelessWidget {
     final isDay = (current?.isDay ?? 1) == 1;
     final gradient = WeatherUtils.getWeatherGradient(code, isDay: isDay);
     final cityLabel =
-        location.state != null && location.state!.trim().isNotEmpty
-            ? '${location.name}, ${location.state}'
-            : location.name;
+        LocationLabelFormatter.cityLine(location.name, location.state);
     final countryLabel = location.country.trim();
 
     return GestureDetector(
@@ -973,13 +1044,16 @@ class _SavedLocationCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        cityLabel,
-                        style: const TextStyle(
-                          fontFamily: 'Rajdhani',
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.white,
+                      Flexible(
+                        child: Text(
+                          cityLabel,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'Rajdhani',
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.white,
+                          ),
                         ),
                       ),
                       if (location.isHome) ...[
@@ -1149,9 +1223,8 @@ class _RecentLocationCard extends StatelessWidget {
     final current = weather?.current;
     final code = current?.weatherCode ?? 0;
     final isDay = (current?.isDay ?? 1) == 1;
-    final cityLabel = result.state != null && result.state!.trim().isNotEmpty
-        ? '${result.name}, ${result.state}'
-        : result.name;
+    final cityLabel =
+        LocationLabelFormatter.cityLine(result.name, result.state);
     final countryLabel = result.country.trim();
 
     return GestureDetector(
@@ -1260,9 +1333,8 @@ class _SearchResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cityLabel = result.state != null && result.state!.trim().isNotEmpty
-        ? '${result.name}, ${result.state}'
-        : result.name;
+    final cityLabel =
+        LocationLabelFormatter.cityLine(result.name, result.state);
     final countryLabel = result.country.trim();
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
