@@ -12,6 +12,7 @@ import 'package:atmos/presentation/widgets/weather/hourly_forecast_widget.dart';
 import 'package:atmos/presentation/widgets/weather/daily_forecast_widget.dart';
 import 'package:atmos/presentation/widgets/weather/weather_details_grid.dart';
 import 'package:atmos/presentation/widgets/weather/air_quality_card.dart';
+//  import 'package:atmos/presentation/widgets/weather/sun_moon_card.dart';
 import 'package:atmos/presentation/widgets/weather/search_overlay.dart';
 import 'package:atmos/core/theme/app_theme.dart';
 import 'package:atmos/core/utils/settings_controller.dart';
@@ -151,6 +152,14 @@ class _HomeScreenState extends State<HomeScreen>
                                   .animate()
                                   .fadeIn(duration: 500.ms, delay: 240.ms),
                             ),
+                          // if (weather.daily != null)
+                          //   SliverToBoxAdapter(
+                          //      child: SunMoonCard(
+                          //       daily: weather.daily!,
+                          //     )
+                          //         .animate()
+                          //         .fadeIn(duration: 500.ms, delay: 280.ms),
+                          //   ),
                           if (weather.daily != null)
                             SliverToBoxAdapter(
                               // Fix: wrap DailyForecastWidget in a horizontally
