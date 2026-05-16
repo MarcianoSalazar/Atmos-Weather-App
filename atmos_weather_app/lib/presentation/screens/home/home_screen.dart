@@ -1,5 +1,7 @@
 // lib/presentation/screens/home/home_screen.dart
 
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -83,15 +85,15 @@ class _HomeScreenState extends State<HomeScreen>
                   WeatherUtils.getWeatherGradient(weatherCode, isDay: isDay);
               final settings = _settingsController.settings;
 
-              // Determine text color based on gradient brightness
-              // Our gradients are all dark so white text is always safe
               const textColor = AppColors.white;
               const subColor = AppColors.white80;
 
               return Container(
                 decoration: BoxDecoration(gradient: gradient),
                 child: SafeArea(
-                  bottom: false,
+                  // Fix: include bottom in SafeArea so content is never clipped
+                  // by the nav bar inset; the bottom SizedBox(height:110) handles spacing.
+                  bottom: true,
                   child: RefreshIndicator(
                     onRefresh: () async {
                       context.read<WeatherBloc>().add(const RefreshWeather());
@@ -151,14 +153,23 @@ class _HomeScreenState extends State<HomeScreen>
                             ),
                           if (weather.daily != null)
                             SliverToBoxAdapter(
-                              child: DailyForecastWidget(
-                                dailyData: weather.daily!,
-                                settings: settings,
+                              // Fix: wrap DailyForecastWidget in a horizontally
+                              // constrained box so the temp-bar Row never overflows
+                              // to the right.
+                              child: LayoutBuilder(
+                                builder: (context, constraints) => SizedBox(
+                                  width: constraints.maxWidth,
+                                  child: DailyForecastWidget(
+                                    dailyData: weather.daily!,
+                                    settings: settings,
+                                  ),
+                                ),
                               )
                                   .animate()
                                   .fadeIn(duration: 500.ms, delay: 320.ms),
                             ),
                         ],
+                        // Extra bottom spacing so content clears the nav bar
                         const SliverToBoxAdapter(child: SizedBox(height: 110)),
                       ],
                     ),
@@ -203,6 +214,7 @@ class _HomeScreenState extends State<HomeScreen>
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       child: Row(
         children: [
+          // Fix: Expanded prevents the city label row from overflowing right
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -212,21 +224,28 @@ class _HomeScreenState extends State<HomeScreen>
                   style: TextStyle(
                     fontFamily: 'Rajdhani',
                     fontSize: 13,
-                    // ignore: deprecated_member_use
                     color: subColor.withOpacity(0.7),
                     letterSpacing: 0.8,
                   ),
                 ),
                 const SizedBox(height: 2),
-                Row(
+                // Fix: use Wrap instead of Row so badge + spinner never
+                // push past the right edge of the screen.
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 4,
+                  runSpacing: 2,
                   children: [
                     const Icon(
                       Icons.location_on,
                       color: AppColors.tempYellow,
                       size: 17,
                     ),
-                    const SizedBox(width: 3),
-                    Flexible(
+                    // City name — constrain width so it doesn't crowd the badge
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: MediaQuery.of(context).size.width - 160,
+                      ),
                       child: Text(
                         cityLabel,
                         overflow: TextOverflow.ellipsis,
@@ -239,15 +258,13 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ),
                     ),
-                    if (locationDetail.isNotEmpty) ...[
-                      const SizedBox(width: 6),
+                    if (locationDetail.isNotEmpty)
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 6,
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          // ignore: deprecated_member_use
                           color: Colors.white.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(5),
                         ),
@@ -261,18 +278,13 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                         ),
                       ),
-                    ],
                     if (isRefreshing)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: SizedBox(
-                          width: 12,
-                          height: 12,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 1.5,
-                            // ignore: deprecated_member_use
-                            color: subColor.withOpacity(0.6),
-                          ),
+                      SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          color: subColor.withOpacity(0.6),
                         ),
                       ),
                   ],
@@ -420,10 +432,8 @@ class _HeaderBtn extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          // ignore: deprecated_member_use
           color: Colors.black.withOpacity(0.25),
           borderRadius: BorderRadius.circular(12),
-          // ignore: deprecated_member_use
           border: Border.all(color: Colors.white.withOpacity(0.2)),
         ),
         child: Icon(icon, color: AppColors.white, size: 20),

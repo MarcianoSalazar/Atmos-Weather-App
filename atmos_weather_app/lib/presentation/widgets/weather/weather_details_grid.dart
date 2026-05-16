@@ -27,7 +27,8 @@ class WeatherDetailsGrid extends StatelessWidget {
             padding: EdgeInsets.only(bottom: 12),
             child: Row(
               children: [
-                Icon(Icons.info_outline_rounded, color: AppColors.white60, size: 16),
+                Icon(Icons.info_outline_rounded,
+                    color: AppColors.white60, size: 16),
                 SizedBox(width: 6),
                 Text(
                   'WEATHER DETAILS',
@@ -46,7 +47,7 @@ class WeatherDetailsGrid extends StatelessWidget {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             crossAxisCount: 2,
-            childAspectRatio: 1.5,
+            childAspectRatio: 1.55,
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
             children: [
@@ -61,15 +62,19 @@ class WeatherDetailsGrid extends StatelessWidget {
               _DetailCard(
                 icon: Icons.air_rounded,
                 label: 'Wind',
-                value: WeatherUtils.formatWindSpeed(current.windSpeed10m, unit: settings.windSpeedUnit),
-                subtitle: WeatherUtils.getWindDirection(current.windDirection10m),
+                value: WeatherUtils.formatWindSpeed(current.windSpeed10m,
+                    unit: settings.windSpeedUnit),
+                subtitle:
+                    WeatherUtils.getWindDirection(current.windDirection10m),
                 color: const Color(0xFF81D4FA),
-                customWidget: _WindDirectionDial(degrees: current.windDirection10m),
+                customWidget:
+                    _WindDirectionDial(degrees: current.windDirection10m),
               ),
               _DetailCard(
                 icon: Icons.compress_rounded,
                 label: 'Pressure',
-                value: WeatherUtils.formatPressure(current.surfacePressure, unit: settings.pressureUnit),
+                value: WeatherUtils.formatPressure(current.surfacePressure,
+                    unit: settings.pressureUnit),
                 subtitle: _getPressureLabel(current.surfacePressure),
                 color: const Color(0xFF4FC3F7),
               ),
@@ -151,7 +156,7 @@ class _DetailCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
       decoration: BoxDecoration(
         color: AppColors.white10,
         borderRadius: BorderRadius.circular(18),
@@ -159,30 +164,33 @@ class _DetailCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.max,
         children: [
           Row(
             children: [
               Icon(icon, color: color, size: 18),
               const SizedBox(width: 6),
-              Text(
-                label.toUpperCase(),
-                style: const TextStyle(
-                  fontFamily: 'Rajdhani',
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.white60,
-                  letterSpacing: 1,
+              Expanded(
+                child: Text(
+                  label.toUpperCase(),
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Rajdhani',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.white60,
+                    letterSpacing: 1,
+                  ),
                 ),
               ),
-              if (customWidget != null) ...[
-                const Spacer(),
-                customWidget!,
-              ],
+              if (customWidget != null) customWidget!,
             ],
           ),
           const Spacer(),
           Text(
             value,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
             style: TextStyle(
               fontFamily: 'Rajdhani',
               fontSize: 20,
@@ -190,7 +198,6 @@ class _DetailCard extends StatelessWidget {
               color: color,
             ),
           ),
-          const SizedBox(height: 2),
           if (progress != null) ...[
             ClipRRect(
               borderRadius: BorderRadius.circular(2),
@@ -201,10 +208,12 @@ class _DetailCard extends StatelessWidget {
                 minHeight: 3,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
           ],
           Text(
             subtitle,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
             style: const TextStyle(
               fontFamily: 'Rajdhani',
               fontSize: 12,
@@ -273,5 +282,6 @@ class _DialPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_DialPainter oldDelegate) => oldDelegate.degrees != degrees;
+  bool shouldRepaint(_DialPainter oldDelegate) =>
+      oldDelegate.degrees != degrees;
 }
