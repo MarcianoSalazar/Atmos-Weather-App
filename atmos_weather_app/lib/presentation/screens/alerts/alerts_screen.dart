@@ -1,18 +1,19 @@
 // lib/presentation/screens/alerts/alerts_screen.dart
 
-import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:dio/dio.dart';
-import 'package:atmos/core/theme/app_theme.dart';
-import 'package:atmos/core/utils/weather_utils.dart';
-import 'package:atmos/data/models/weather_model.dart';
-import 'package:atmos/data/repositories/weather_repository.dart';
-import 'package:atmos/presentation/bloc/weather/weather_bloc.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/weather_utils.dart';
+import '../../../data/models/weather_model.dart';
+import '../../../data/repositories/weather_repository.dart';
+import '../../bloc/weather/weather_bloc.dart';
 
-// ─── Country-based emergency hotlines ────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// Emergency hotlines by country (static reference data — not weather alerts)
+// ---------------------------------------------------------------------------
 const Map<String, List<_HotlineData>> _hotlinesByCountry = {
   'Philippines': [
     _HotlineData('NDRRMC / Emergency', '911'),
@@ -78,7 +79,14 @@ class _HotlineData {
   const _HotlineData(this.label, this.number);
 }
 
-// ─── Screen ──────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// Alert source tag — shown to the user so they know where the alert came from
+// ---------------------------------------------------------------------------
+enum _AlertSource { owmOfficial, openMeteoEstimated }
+
+// ---------------------------------------------------------------------------
+// AlertsScreen
+// ---------------------------------------------------------------------------
 class AlertsScreen extends StatefulWidget {
   const AlertsScreen({super.key});
 
@@ -88,9 +96,16 @@ class AlertsScreen extends StatefulWidget {
 
 class _AlertsScreenState extends State<AlertsScreen> {
   List<WeatherAlert> _alerts = [];
+  _AlertSource _alertSource = _AlertSource.openMeteoEstimated;
   bool _loadingAlerts = false;
   String? _alertError;
   String _lastFetchKey = '';
+
+  // ---------------------------------------------------------------------------
+  // Your OpenWeatherMap API key — replace with your actual key.
+  // Sign up at https://openweathermap.org/api/one-call-3 (free tier available).
+  // ---------------------------------------------------------------------------
+  static const String _owmApiKey = 'YOUR_OWM_API_KEY_HERE';
 
   @override
   void initState() {
@@ -105,6 +120,9 @@ class _AlertsScreenState extends State<AlertsScreen> {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Main fetch: tries OWM One Call 3.0 first, falls back to open-meteo
+  // ---------------------------------------------------------------------------
   Future<void> _fetchAlerts(
     double lat,
     double lon,
@@ -121,10 +139,162 @@ class _AlertsScreenState extends State<AlertsScreen> {
       _alertError = null;
     });
 
+    // 1. Try OpenWeatherMap One Call 3.0 (real government / met-service alerts)
+    if (_owmApiKey != 'YOUR_OWM_API_KEY_HERE') {
+      final owmAlerts = await _fetchOWMAlerts(lat, lon, city, key);
+      if (owmAlerts != null) {
+        if (!mounted) return;
+        setState(() {
+          _alerts = owmAlerts;
+          _alertSource = _AlertSource.owmOfficial;
+          _loadingAlerts = false;
+        });
+        await context.read<WeatherRepository>().saveAlerts(owmAlerts);
+        return;
+      }
+    }
+
+    // 2. Fallback: open-meteo threshold-based alerts
+    await _fetchOpenMeteoAlerts(lat, lon, city, key);
+  }
+
+  // ---------------------------------------------------------------------------
+  // OWM One Call 3.0 — real alerts[]
+  // Docs: https://openweathermap.org/api/one-call-3#alerts
+  // ---------------------------------------------------------------------------
+  Future<List<WeatherAlert>?> _fetchOWMAlerts(
+    double lat,
+    double lon,
+    String city,
+    String key,
+  ) async {
     try {
-      // Open-Meteo does not have a dedicated alert endpoint.
-      // We derive smart, data-driven alerts from the free forecast API.
       final dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 10)));
+      final resp = await dio.get<Map<String, dynamic>>(
+        'https://api.openweathermap.org/data/3.0/onecall',
+        queryParameters: {
+          'lat': lat,
+          'lon': lon,
+          'appid': _owmApiKey,
+          'exclude': 'minutely,hourly,daily',
+          'units': 'metric',
+        },
+      );
+
+      final data = resp.data;
+      if (data == null) return null;
+
+      final rawAlerts = data['alerts'] as List<dynamic>?;
+
+      // OWM returns an empty list or omits the key when there are no alerts —
+      // that is a valid "no alerts" response, not an error.
+      if (rawAlerts == null || rawAlerts.isEmpty) return [];
+
+      final now = DateTime.now();
+      final List<WeatherAlert> alerts = [];
+
+      for (int i = 0; i < rawAlerts.length; i++) {
+        final a = rawAlerts[i] as Map<String, dynamic>;
+
+        final senderName = (a['sender_name'] as String?) ?? 'Met Service';
+        final event = (a['event'] as String?) ?? 'Weather Alert';
+        final description = (a['description'] as String?) ?? '';
+        final startEpoch = (a['start'] as num?)?.toInt();
+        final endEpoch = (a['end'] as num?)?.toInt();
+        final tags = (a['tags'] as List<dynamic>?)
+                ?.map((t) => t.toString().toLowerCase())
+                .toList() ??
+            [];
+
+        final startsAt = startEpoch != null
+            ? DateTime.fromMillisecondsSinceEpoch(startEpoch * 1000)
+            : now;
+        final endsAt = endEpoch != null
+            ? DateTime.fromMillisecondsSinceEpoch(endEpoch * 1000)
+            : now.add(const Duration(hours: 24));
+
+        // Infer severity from tags provided by OWM or from event text
+        final severity = _inferSeverityFromTags(tags, event);
+
+        alerts.add(WeatherAlert(
+          id: 'owm_${key}_$i',
+          title: event,
+          description: description.isNotEmpty
+              ? description
+              : 'Alert issued by $senderName. Check local advisories for details.',
+          severity: severity,
+          event: event,
+          startsAt: startsAt,
+          endsAt: endsAt,
+          isRead: false,
+          lat: lat,
+          lon: lon,
+        ));
+      }
+
+      return alerts;
+    } on DioException {
+      // Network or HTTP error — fall through to open-meteo
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Derives a human-readable severity from OWM alert tags.
+  /// OWM tags can include: "Extreme", "Severe", "Moderate", "Minor",
+  /// "Wind", "Rain", "Fog", "Snow", "Thunderstorm", etc.
+  String _inferSeverityFromTags(List<String> tags, String event) {
+    for (final tag in tags) {
+      if (tag == 'extreme') return 'Extreme';
+      if (tag == 'severe') return 'Severe';
+      if (tag == 'moderate') return 'Moderate';
+      if (tag == 'minor') return 'Minor';
+    }
+    // Fall back to keyword matching in the event title
+    final e = event.toLowerCase();
+    if (e.contains('extreme') ||
+        e.contains('typhoon') ||
+        e.contains('cyclone') ||
+        e.contains('tornado')) {
+      return 'Extreme';
+    }
+    if (e.contains('severe') || e.contains('warning') || e.contains('danger')) {
+      return 'Severe';
+    }
+    if (e.contains('watch') || e.contains('advisory')) return 'Moderate';
+    return 'Minor';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Open-Meteo dynamic alert generation
+  //
+  // Strategy: fetch current + 3-day daily data from Open-Meteo, then derive
+  // alerts **only** from actual API values — no hardcoded thresholds that fire
+  // regardless of real conditions.  Each alert is generated only when the
+  // corresponding metric exceeds a meaningful danger level.
+  //
+  // WMO weather code reference (subset used here):
+  //   0        → Clear sky
+  //   1–3      → Mainly clear / partly cloudy / overcast
+  //   45, 48   → Fog / depositing rime fog
+  //   51–55    → Drizzle (light → dense)
+  //   61–65    → Rain (slight → heavy)
+  //   71–75    → Snow (slight → heavy)
+  //   80–82    → Rain showers (slight → violent)
+  //   95       → Thunderstorm (slight/moderate)
+  //   96, 99   → Thunderstorm with hail (slight / heavy)
+  // ---------------------------------------------------------------------------
+  Future<void> _fetchOpenMeteoAlerts(
+    double lat,
+    double lon,
+    String city,
+    String key,
+  ) async {
+    try {
+      final dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 10)));
+
+      // ── Primary request: current + 3-day daily ──────────────────────────
       final resp = await dio.get<Map<String, dynamic>>(
         'https://api.open-meteo.com/v1/forecast',
         queryParameters: {
@@ -132,21 +302,27 @@ class _AlertsScreenState extends State<AlertsScreen> {
           'longitude': lon,
           'current': [
             'temperature_2m',
+            'apparent_temperature',
             'weather_code',
             'wind_speed_10m',
+            'wind_gusts_10m',
             'precipitation',
             'surface_pressure',
+            'relative_humidity_2m',
+            'visibility',
           ].join(','),
           'daily': [
             'weather_code',
             'temperature_2m_max',
             'temperature_2m_min',
             'precipitation_sum',
+            'precipitation_probability_max',
             'wind_speed_10m_max',
+            'wind_gusts_10m_max',
             'uv_index_max',
           ].join(','),
           'timezone': 'auto',
-          'forecast_days': 3,
+          'forecast_days': 1,
         },
       );
 
@@ -157,214 +333,236 @@ class _AlertsScreenState extends State<AlertsScreen> {
       final alerts = <WeatherAlert>[];
       final now = DateTime.now();
 
-      // ── Derive alerts from current + 3-day data ──────────────────────────
-      final temp = (cur['temperature_2m'] as num?)?.toDouble() ?? 0;
-      final windSpeed = (cur['wind_speed_10m'] as num?)?.toDouble() ?? 0;
-      final precip = (cur['precipitation'] as num?)?.toDouble() ?? 0;
-      final pressure = (cur['surface_pressure'] as num?)?.toDouble() ?? 1013;
+      // ── Parse current values ─────────────────────────────────────────────
+      final temp = (cur['temperature_2m'] as num?)?.toDouble() ?? 0.0;
+      final feelsLike =
+          (cur['apparent_temperature'] as num?)?.toDouble() ?? temp;
+      final windSpeed = (cur['wind_speed_10m'] as num?)?.toDouble() ?? 0.0;
+      final windGust = (cur['wind_gusts_10m'] as num?)?.toDouble() ?? windSpeed;
+      final precip = (cur['precipitation'] as num?)?.toDouble() ?? 0.0;
+      final pressure = (cur['surface_pressure'] as num?)?.toDouble() ?? 1013.0;
+      final humidity = (cur['relative_humidity_2m'] as num?)?.toDouble() ?? 0.0;
+      final visibility = (cur['visibility'] as num?)?.toDouble() ?? 10000.0;
       final wCode = (cur['weather_code'] as num?)?.toInt() ?? 0;
 
-      final dailyMaxTemps = (daily['temperature_2m_max'] as List?)
-              ?.map((e) => (e as num?)?.toDouble() ?? 0)
-              .toList() ??
-          [];
-      final dailyPrecipSums = (daily['precipitation_sum'] as List?)
-              ?.map((e) => (e as num?)?.toDouble() ?? 0)
-              .toList() ??
-          [];
-      final dailyWindMax = (daily['wind_speed_10m_max'] as List?)
-              ?.map((e) => (e as num?)?.toDouble() ?? 0)
-              .toList() ??
-          [];
-      final dailyUvMax = (daily['uv_index_max'] as List?)
-              ?.map((e) => (e as num?)?.toDouble() ?? 0)
-              .toList() ??
-          [];
-      final dailyCodes = (daily['weather_code'] as List?)
-              ?.map((e) => (e as num?)?.toInt() ?? 0)
-              .toList() ??
-          [];
+      // ── Parse daily arrays ───────────────────────────────────────────────
+      List<T> parseList<T>(String field, T Function(num?) parse) =>
+          (daily[field] as List?)?.map((e) => parse(e as num?)).toList() ?? [];
 
-      // Typhoon / tropical cyclone (codes 95-99 = thunderstorm / severe storm)
-      final hasTyphoon = dailyCodes.any((c) => c >= 95) || wCode >= 95;
-      if (hasTyphoon) {
-        alerts.add(
-          WeatherAlert(
-            id: 'typhoon_$key',
-            title: 'Severe Storm / Cyclone Warning',
-            description: 'Severe storm conditions detected near $city. '
-                'Wind speeds may exceed 80 km/h with heavy rainfall. '
-                'Residents in coastal and low-lying areas should prepare go-bags '
-                'and monitor official advisories closely.',
-            severity: 'Extreme',
-            event: 'Typhoon',
-            startsAt: now,
-            endsAt: now.add(const Duration(hours: 36)),
-            isRead: false,
-            lat: lat,
-            lon: lon,
-          ),
-        );
+      final dailyCodes =
+          parseList<int>('weather_code', (n) => n?.toInt() ?? 0);
+      final dailyMaxTemps =
+          parseList<double>('temperature_2m_max', (n) => n?.toDouble() ?? 0);
+      final dailyPrecipSums =
+          parseList<double>('precipitation_sum', (n) => n?.toDouble() ?? 0);
+      final dailyPrecipProb = parseList<int>(
+          'precipitation_probability_max', (n) => n?.toInt() ?? 0);
+      final dailyWindMax =
+          parseList<double>('wind_speed_10m_max', (n) => n?.toDouble() ?? 0);
+      final dailyGustMax =
+          parseList<double>('wind_gusts_10m_max', (n) => n?.toDouble() ?? 0);
+      final dailyUvMax =
+          parseList<double>('uv_index_max', (n) => n?.toDouble() ?? 0);
+
+      // ════════════════════════════════════════════════════════════════════════
+      // ALERT RULES — today only (index 0 of daily arrays).
+      // All checks use today's daily values combined with live current readings.
+      // ════════════════════════════════════════════════════════════════════════
+
+      // Convenience: today's daily values (index 0)
+      final todayCode = dailyCodes.elementAtOrNull(0) ?? wCode;
+      final todayMaxTemp = dailyMaxTemps.elementAtOrNull(0) ?? temp;
+      final todayPrecip = dailyPrecipSums.elementAtOrNull(0) ?? precip;
+      final todayPrecipProb = dailyPrecipProb.elementAtOrNull(0) ?? 100;
+      final todayWindMax = dailyWindMax.elementAtOrNull(0) ?? windSpeed;
+      final todayGustMax = dailyGustMax.elementAtOrNull(0) ?? windGust;
+      final todayUv = dailyUvMax.elementAtOrNull(0) ?? 0.0;
+
+      // ── 1. Severe thunderstorm (WMO 95–99 today) ─────────────────────────
+      if (todayCode >= 95) {
+        final isSevere = todayCode >= 96; // 96/99 = with hail
+        alerts.add(WeatherAlert(
+          id: 'thunderstorm_$key',
+          title: isSevere
+              ? 'Severe Thunderstorm Warning'
+              : 'Thunderstorm Advisory',
+          description: isSevere
+              ? 'A severe thunderstorm with hail is occurring or expected today near $city. '
+                  'Wind gusts may reach ${todayGustMax.round()} km/h. '
+                  'Stay indoors, avoid open areas and tall objects. '
+                  'Monitor official advisories closely.'
+              : 'A thunderstorm is expected today near $city. '
+                  'Wind gusts may reach ${todayGustMax.round()} km/h with heavy rain. '
+                  'Avoid outdoor activities during the storm.',
+          severity: isSevere ? 'Extreme' : 'Severe',
+          event: isSevere ? 'Severe Thunderstorm' : 'Thunderstorm',
+          startsAt: now,
+          endsAt: now.add(const Duration(hours: 12)),
+          isRead: false,
+          lat: lat,
+          lon: lon,
+        ));
       }
 
-      // Heavy rain
-      final maxDailyPrecip = dailyPrecipSums.isNotEmpty
-          ? dailyPrecipSums.reduce((a, b) => a > b ? a : b)
-          : 0.0;
-      if (maxDailyPrecip >= 50 || precip > 5) {
-        alerts.add(
-          WeatherAlert(
+      // ── 2. Heavy rain today (daily sum ≥ 30 mm with ≥ 60% probability,
+      //        OR active precipitation ≥ 5 mm right now) ───────────────────
+      // Skip if thunderstorm alert already covers today.
+      if (todayCode < 95) {
+        final isActiveNow = precip >= 5;
+        if ((todayPrecip >= 30 && todayPrecipProb >= 60) || isActiveNow) {
+          alerts.add(WeatherAlert(
             id: 'heavyrain_$key',
-            title: 'Heavy Rain Advisory',
-            description: 'Heavy rainfall is expected over the next 24–48 hours '
-                'with accumulations up to ${maxDailyPrecip.round()} mm possible near $city. '
-                'Flash flooding of low-lying and poor-drainage areas is possible. '
-                'Motorists should exercise caution.',
-            severity: 'Moderate',
+            title: todayPrecip >= 80
+                ? 'Heavy Rain Warning'
+                : 'Heavy Rain Advisory',
+            description: isActiveNow && todayPrecip < 30
+                ? 'Heavy precipitation of ${precip.toStringAsFixed(1)} mm is currently '
+                    'falling near $city. Flash flooding of low-lying areas is possible. '
+                    'Motorists should exercise caution and avoid flooded roads.'
+                : 'Significant rainfall of up to ${todayPrecip.round()} mm '
+                    '($todayPrecipProb% probability) is expected today near $city. '
+                    'Flash flooding of low-lying areas is possible. '
+                    'Motorists should exercise caution and avoid flooded roads.',
+            severity: todayPrecip >= 80 ? 'Severe' : 'Moderate',
             event: 'Heavy Rain',
             startsAt: now,
             endsAt: now.add(const Duration(hours: 24)),
             isRead: false,
             lat: lat,
             lon: lon,
-          ),
-        );
+          ));
+        }
       }
 
-      // Strong winds
-      final maxWind = dailyWindMax.isNotEmpty
-          ? dailyWindMax.reduce((a, b) => a > b ? a : b)
-          : windSpeed;
-      if (maxWind >= 50 || windSpeed >= 40) {
-        alerts.add(
-          WeatherAlert(
-            id: 'wind_$key',
-            title: 'Strong Wind Warning',
-            description: 'Strong winds with sustained speeds of '
-                '${windSpeed.round()}–${maxWind.round()} km/h are expected near $city. '
-                'Secure loose outdoor items. Residents in exposed coastal areas '
-                'should take precautionary measures.',
-            severity: maxWind >= 80 ? 'Severe' : 'Moderate',
-            event: 'Strong Wind',
-            startsAt: now,
-            endsAt: now.add(const Duration(hours: 18)),
-            isRead: false,
-            lat: lat,
-            lon: lon,
-          ),
-        );
+      // ── 3. Strong wind today (sustained ≥ 50 km/h or gusts ≥ 70 km/h) ──
+      if (todayWindMax >= 50 || todayGustMax >= 70) {
+        alerts.add(WeatherAlert(
+          id: 'wind_$key',
+          title: todayGustMax >= 90
+              ? 'Destructive Wind Warning'
+              : 'Strong Wind Warning',
+          description:
+              'Sustained winds of ${todayWindMax.round()} km/h with gusts '
+              'up to ${todayGustMax.round()} km/h are expected today near $city. '
+              'Secure loose outdoor objects. Residents in exposed areas '
+              'should take precautionary measures.',
+          severity: todayGustMax >= 90
+              ? 'Extreme'
+              : (todayGustMax >= 70 ? 'Severe' : 'Moderate'),
+          event: 'Strong Wind',
+          startsAt: now,
+          endsAt: now.add(const Duration(hours: 18)),
+          isRead: false,
+          lat: lat,
+          lon: lon,
+        ));
       }
 
-      // Extreme heat
-      final maxTemp = dailyMaxTemps.isNotEmpty
-          ? dailyMaxTemps.reduce((a, b) => a > b ? a : b)
-          : temp;
-      if (maxTemp >= 38 || temp >= 36) {
-        alerts.add(
-          WeatherAlert(
-            id: 'heat_$key',
-            title: 'Extreme Heat Advisory',
-            description: 'Dangerous heat conditions expected near $city with '
-                'temperatures reaching ${maxTemp.round()}°C. '
-                'Heat index values may reach 41–54°C. '
-                'Limit outdoor activities between 10 AM and 4 PM. '
-                'Stay hydrated and seek air-conditioned environments.',
-            severity: maxTemp >= 42 ? 'Extreme' : 'Severe',
-            event: 'Extreme Heat',
-            startsAt: now,
-            endsAt: now.add(const Duration(hours: 24)),
-            isRead: false,
-            lat: lat,
-            lon: lon,
-          ),
-        );
-      } else if (temp >= 30 && temp < 36) {
-        alerts.add(
-          WeatherAlert(
-            id: 'hightemp_$key',
-            title: 'Heat Index Advisory',
-            description: 'High temperatures of ${temp.round()}°C near $city. '
-                'Carry water, wear sunscreen, and use shade when possible.',
-            severity: 'Minor',
-            event: 'High Temperature',
-            startsAt: now,
-            endsAt: now.add(const Duration(hours: 12)),
-            isRead: false,
-            lat: lat,
-            lon: lon,
-          ),
-        );
+      // ── 4. Extreme heat today (daily max ≥ 38 °C) ────────────────────────
+      if (todayMaxTemp >= 38) {
+        final isExtreme = todayMaxTemp >= 42 || feelsLike >= 45;
+        alerts.add(WeatherAlert(
+          id: 'heat_$key',
+          title: isExtreme ? 'Extreme Heat Warning' : 'Heat Advisory',
+          description: 'Dangerous heat of ${todayMaxTemp.round()}°C '
+              '(currently feels like ${feelsLike.round()}°C) is forecast today near $city. '
+              'Limit outdoor activities between 10 AM and 4 PM. '
+              'Stay hydrated, use cooling centres, and check on vulnerable individuals.',
+          severity: isExtreme ? 'Extreme' : 'Severe',
+          event: 'Extreme Heat',
+          startsAt: now,
+          endsAt: now.add(const Duration(hours: 24)),
+          isRead: false,
+          lat: lat,
+          lon: lon,
+        ));
       }
 
-      // High UV
-      final maxUv = dailyUvMax.isNotEmpty
-          ? dailyUvMax.reduce((a, b) => a > b ? a : b)
-          : 0.0;
-      if (maxUv >= 8) {
-        alerts.add(
-          WeatherAlert(
-            id: 'uv_$key',
-            title: 'High UV Index Warning',
-            description:
-                'UV index is forecast to reach ${maxUv.round()} (${WeatherUtils.getUVLabel(maxUv)}) '
-                'near $city. Use SPF 50+ sunscreen, UV-blocking sunglasses, '
-                'and protective clothing. Avoid direct sun exposure midday.',
-            severity: maxUv >= 11 ? 'Extreme' : 'Severe',
-            event: 'High UV',
-            startsAt: now,
-            endsAt: now.add(const Duration(hours: 10)),
-            isRead: false,
-            lat: lat,
-            lon: lon,
-          ),
-        );
+      // ── 5. High UV today (daily max ≥ 8) ─────────────────────────────────
+      if (todayUv >= 8) {
+        alerts.add(WeatherAlert(
+          id: 'uv_$key',
+          title: todayUv >= 11
+              ? 'Extreme UV Index Warning'
+              : 'High UV Index Advisory',
+          description: 'UV index is forecast to reach ${todayUv.round()} '
+              '(${WeatherUtils.getUVLabel(todayUv)}) today near $city. '
+              'Apply SPF 50+ sunscreen, wear UV-protective clothing and sunglasses. '
+              'Minimise direct sun exposure between 10 AM and 3 PM.',
+          severity: todayUv >= 11 ? 'Extreme' : 'Severe',
+          event: 'High UV',
+          startsAt: now,
+          endsAt: now.add(const Duration(hours: 10)),
+          isRead: false,
+          lat: lat,
+          lon: lon,
+        ));
       }
 
-      // Low pressure / storm system
+      // ── 6. Current-conditions alerts (fire once for now) ──────────────────
+
+      // Dense fog — WMO 45/48 or visibility < 1 km
+      if (wCode == 45 || wCode == 48 || visibility < 1000) {
+        alerts.add(WeatherAlert(
+          id: 'fog_$key',
+          title: 'Dense Fog Advisory',
+          description: 'Dense fog is currently affecting $city '
+              '${visibility < 1000 ? 'with visibility as low as ${(visibility / 1000).toStringAsFixed(1)} km' : 'with visibility below 200 m'}. '
+              'Reduce speed, increase following distance, and use fog lights when driving.',
+          severity: 'Minor',
+          event: 'Dense Fog',
+          startsAt: now,
+          endsAt: now.add(const Duration(hours: 6)),
+          isRead: false,
+          lat: lat,
+          lon: lon,
+        ));
+      }
+
+      // Low atmospheric pressure — active storm system indicator
       if (pressure < 990) {
-        alerts.add(
-          WeatherAlert(
-            id: 'pressure_$key',
-            title: 'Low Pressure System',
-            description:
-                'A low pressure system (${pressure.round()} hPa) is present '
-                'near $city, indicating an active storm system. '
-                'Expect unsettled weather with possible heavy rain and strong winds.',
-            severity: 'Moderate',
-            event: 'Low Pressure',
-            startsAt: now,
-            endsAt: now.add(const Duration(hours: 24)),
-            isRead: false,
-            lat: lat,
-            lon: lon,
-          ),
-        );
+        alerts.add(WeatherAlert(
+          id: 'pressure_$key',
+          title: 'Low Pressure System Detected',
+          description: 'A low pressure system of ${pressure.round()} hPa '
+              'is currently present near $city, '
+              'indicating an active or developing storm. '
+              'Expect unsettled weather with potential heavy rain and strong winds.',
+          severity: pressure < 975 ? 'Severe' : 'Moderate',
+          event: 'Low Pressure',
+          startsAt: now,
+          endsAt: now.add(const Duration(hours: 24)),
+          isRead: false,
+          lat: lat,
+          lon: lon,
+        ));
       }
 
-      // Fog / mist
-      if (wCode == 45 || wCode == 48) {
-        alerts.add(
-          WeatherAlert(
-            id: 'fog_$key',
-            title: 'Dense Fog Advisory',
-            description:
-                'Dense fog is affecting $city with visibility below 200 m. '
-                'Motorists should reduce speed, increase following distance, '
-                'and use fog lights.',
-            severity: 'Minor',
-            event: 'Dense Fog',
-            startsAt: now,
-            endsAt: now.add(const Duration(hours: 6)),
-            isRead: false,
-            lat: lat,
-            lon: lon,
-          ),
-        );
+      // Very high humidity — discomfort / health risk (tropical threshold)
+      if (humidity >= 90 && temp >= 30) {
+        alerts.add(WeatherAlert(
+          id: 'humidity_$key',
+          title: 'High Heat & Humidity Advisory',
+          description:
+              'Relative humidity of ${humidity.round()}% combined with '
+              'a temperature of ${temp.round()}°C near $city '
+              'creates oppressive conditions. '
+              'The heat index may feel significantly higher than the actual temperature. '
+              'Stay hydrated and avoid strenuous outdoor activity.',
+          severity: 'Minor',
+          event: 'High Humidity',
+          startsAt: now,
+          endsAt: now.add(const Duration(hours: 12)),
+          isRead: false,
+          lat: lat,
+          lon: lon,
+        ));
       }
 
       if (mounted) {
         setState(() {
           _alerts = alerts;
+          _alertSource = _AlertSource.openMeteoEstimated;
           _loadingAlerts = false;
         });
         await context.read<WeatherRepository>().saveAlerts(alerts);
@@ -379,6 +577,9 @@ class _AlertsScreenState extends State<AlertsScreen> {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Read / mark helpers
+  // ---------------------------------------------------------------------------
   void _markRead(String id) {
     setState(() {
       final idx = _alerts.indexWhere((a) => a.id == id);
@@ -397,6 +598,9 @@ class _AlertsScreenState extends State<AlertsScreen> {
   int get _unreadCount => _alerts.where((a) => !a.isRead).length;
   bool get _hasTyphoon => _alerts.any((a) => a.event == 'Typhoon');
 
+  // ---------------------------------------------------------------------------
+  // Build
+  // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return BlocListener<WeatherBloc, WeatherState>(
@@ -423,6 +627,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
               child: SafeArea(
                 child: RefreshIndicator(
                   onRefresh: () async {
+                    _lastFetchKey = ''; // force re-fetch
                     if (state is WeatherLoaded) {
                       await _fetchAlerts(
                         state.lat,
@@ -440,29 +645,16 @@ class _AlertsScreenState extends State<AlertsScreen> {
                     ),
                     slivers: [
                       SliverToBoxAdapter(
-                        child: _buildHeader(cityName, country),
-                      ),
+                          child: _buildHeader(cityName, country)),
                       SliverToBoxAdapter(
-                        child: _buildAlertBanner(cityName, country),
-                      ),
+                          child: _buildAlertBanner(cityName, country)),
+                      SliverToBoxAdapter(child: _buildAlertsList()),
                       SliverToBoxAdapter(
-                        child: _buildAlertsList(),
-                      ),
-                      SliverToBoxAdapter(
-                        child: _buildPreparednessSection(currentTemp),
-                      ),
-                      SliverToBoxAdapter(
-                        child: _buildHotlines(hotlines),
-                      ),
-                      SliverToBoxAdapter(
-                        child: _buildEvacuationTips(),
-                      ),
-                      SliverToBoxAdapter(
-                        child: _buildPowerOutageKit(),
-                      ),
-                      SliverToBoxAdapter(
-                        child: _buildFooterNote(),
-                      ),
+                          child: _buildPreparednessSection(currentTemp)),
+                      SliverToBoxAdapter(child: _buildHotlines(hotlines)),
+                      SliverToBoxAdapter(child: _buildEvacuationTips()),
+                      SliverToBoxAdapter(child: _buildPowerOutageKit()),
+                      SliverToBoxAdapter(child: _buildFooterNote()),
                       const SliverToBoxAdapter(child: SizedBox(height: 110)),
                     ],
                   ),
@@ -475,7 +667,9 @@ class _AlertsScreenState extends State<AlertsScreen> {
     );
   }
 
-  // ─── Header ──────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Header
+  // ---------------------------------------------------------------------------
   Widget _buildHeader(String cityName, String country) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
@@ -505,7 +699,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
             ],
           ),
           const Spacer(),
-          if (_unreadCount > 0) ...[
+          if (_unreadCount > 0)
             TextButton(
               onPressed: _markAllRead,
               child: const Text(
@@ -518,13 +712,14 @@ class _AlertsScreenState extends State<AlertsScreen> {
                 ),
               ),
             ),
-          ],
         ],
       ),
     );
   }
 
-  // ─── Alert banner ────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Alert banner
+  // ---------------------------------------------------------------------------
   Widget _buildAlertBanner(String cityName, String country) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -600,21 +795,74 @@ class _AlertsScreenState extends State<AlertsScreen> {
     );
   }
 
-  // ─── Alerts list ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Alerts list
+  // ---------------------------------------------------------------------------
   Widget _buildAlertsList() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Active Alerts',
-            style: TextStyle(
-              fontFamily: 'Rajdhani',
-              color: AppColors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              const Text(
+                'Active Alerts',
+                style: TextStyle(
+                  fontFamily: 'Rajdhani',
+                  color: AppColors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              // Source badge
+              if (!_loadingAlerts && _alertError == null)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _alertSource == _AlertSource.owmOfficial
+                        ? Colors.green.withAlpha(46)
+                        : Colors.orange.withAlpha(46),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: _alertSource == _AlertSource.owmOfficial
+                          ? Colors.green.withAlpha(102)
+                          : Colors.orange.withAlpha(102),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _alertSource == _AlertSource.owmOfficial
+                            ? Icons.verified_rounded
+                            : Icons.science_outlined,
+                        color: _alertSource == _AlertSource.owmOfficial
+                            ? Colors.greenAccent
+                            : Colors.orangeAccent,
+                        size: 11,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _alertSource == _AlertSource.owmOfficial
+                            ? 'OFFICIAL'
+                            : 'ESTIMATED',
+                        style: TextStyle(
+                          fontFamily: 'Rajdhani',
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: _alertSource == _AlertSource.owmOfficial
+                              ? Colors.greenAccent
+                              : Colors.orangeAccent,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 10),
           if (_loadingAlerts)
@@ -673,7 +921,9 @@ class _AlertsScreenState extends State<AlertsScreen> {
     );
   }
 
-  // ─── Preparedness ─────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Preparedness section
+  // ---------------------------------------------------------------------------
   Widget _buildPreparednessSection(double temp) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -690,8 +940,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
             ),
           ),
           const SizedBox(height: 10),
-
-          // Go-bag: shown when typhoon / severe storm alert present
           if (_hasTyphoon)
             const _PrepCard(
               icon: Icons.backpack_rounded,
@@ -706,8 +954,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
                 'Extra clothing & sturdy shoes',
               ],
             ),
-
-          // Heat reminders
           if (temp >= 30)
             const _PrepCard(
               icon: Icons.wb_sunny_rounded,
@@ -719,8 +965,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
                 'Limit outdoor activity 10AM–4PM',
               ],
             ),
-
-          // Cold reminders
           if (temp <= 5)
             const _PrepCard(
               icon: Icons.ac_unit_rounded,
@@ -732,8 +976,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
                 'Check on elderly neighbours',
               ],
             ),
-
-          // If no specific reminder applies
           if (!_hasTyphoon && temp > 5 && temp < 30)
             const _PrepCard(
               icon: Icons.safety_check_rounded,
@@ -751,7 +993,9 @@ class _AlertsScreenState extends State<AlertsScreen> {
     );
   }
 
-  // ─── Hotlines ─────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Hotlines
+  // ---------------------------------------------------------------------------
   Widget _buildHotlines(List<_HotlineData> hotlines) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -778,7 +1022,9 @@ class _AlertsScreenState extends State<AlertsScreen> {
     );
   }
 
-  // ─── Evacuation tips ──────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Evacuation tips
+  // ---------------------------------------------------------------------------
   Widget _buildEvacuationTips() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -801,8 +1047,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
                   'Stay calm, follow official alerts, and proceed to the nearest evacuation center.',
             ),
             _BulletItem(
-              text: 'Bring your emergency kit and important documents.',
-            ),
+                text: 'Bring your emergency kit and important documents.'),
             _BulletItem(
               text: 'Assist children, elderly, and pets during evacuation.',
             ),
@@ -812,7 +1057,9 @@ class _AlertsScreenState extends State<AlertsScreen> {
     );
   }
 
-  // ─── Power outage kit ─────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Power outage kit
+  // ---------------------------------------------------------------------------
   Widget _buildPowerOutageKit() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -845,8 +1092,18 @@ class _AlertsScreenState extends State<AlertsScreen> {
     );
   }
 
-  // ─── Footer note ──────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Footer note — updated to mention both sources
+  // ---------------------------------------------------------------------------
   Widget _buildFooterNote() {
+    final sourceText = _alertSource == _AlertSource.owmOfficial
+        ? 'Official alerts are sourced from OpenWeatherMap One Call 3.0 '
+            '(government / meteorological service feeds). '
+            'Data refreshes when you change location or pull to refresh.'
+        : 'No official alerts found for this location. '
+            'Estimated alerts are generated from real-time open-meteo data '
+            'using WMO weather codes and meteorological thresholds.';
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       child: Container(
@@ -857,6 +1114,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
           border: Border.all(color: Colors.white.withAlpha(38)),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Icon(
               Icons.info_outline_rounded,
@@ -866,8 +1124,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Alerts are generated from real-time weather data '
-                'via Open-Meteo. Data updates when you change location.',
+                sourceText,
                 style: TextStyle(
                   fontFamily: 'Rajdhani',
                   color: AppColors.white.withAlpha(166),
@@ -897,7 +1154,10 @@ class _AlertsScreenState extends State<AlertsScreen> {
   }
 }
 
-// ─── Prep Card ────────────────────────────────────────────────────────────────
+// =============================================================================
+// Supporting widgets (unchanged from original)
+// =============================================================================
+
 class _PrepCard extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -956,7 +1216,6 @@ class _PrepCard extends StatelessWidget {
   }
 }
 
-// ─── Alert Card ───────────────────────────────────────────────────────────────
 class _AlertCard extends StatefulWidget {
   final WeatherAlert alert;
   final VoidCallback onTap;
@@ -1010,7 +1269,10 @@ class _AlertCardState extends State<_AlertCard> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Center(
-                      child: Text(icon, style: const TextStyle(fontSize: 22)),
+                      child: Text(
+                        icon,
+                        style: const TextStyle(fontSize: 22),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1044,9 +1306,7 @@ class _AlertCardState extends State<_AlertCard> {
                             if (!widget.alert.isRead)
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 7,
-                                  vertical: 2,
-                                ),
+                                    horizontal: 7, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: AppColors.tempYellow.withAlpha(46),
                                   borderRadius: BorderRadius.circular(8),
@@ -1069,9 +1329,7 @@ class _AlertCardState extends State<_AlertCard> {
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
+                                  horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: color.withAlpha(38),
                                 borderRadius: BorderRadius.circular(6),
@@ -1089,12 +1347,15 @@ class _AlertCardState extends State<_AlertCard> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              widget.alert.event,
-                              style: const TextStyle(
-                                fontFamily: 'Rajdhani',
-                                color: AppColors.white60,
-                                fontSize: 12,
+                            Flexible(
+                              child: Text(
+                                widget.alert.event,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontFamily: 'Rajdhani',
+                                  color: AppColors.white60,
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
                           ],
@@ -1134,7 +1395,6 @@ class _AlertCardState extends State<_AlertCard> {
   }
 }
 
-// ─── Shared sub-widgets ───────────────────────────────────────────────────────
 class _SimpleChecklist extends StatelessWidget {
   final List<String> items;
   const _SimpleChecklist({required this.items});
