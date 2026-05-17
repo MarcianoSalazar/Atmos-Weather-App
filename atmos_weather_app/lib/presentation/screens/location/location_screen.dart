@@ -84,7 +84,7 @@ class _LocationScreenState extends State<LocationScreen>
 
     // Recent history
     if (_repo != null) {
-      _recentLocations = _repo!.getRecentLocations();
+      _recentLocations = _repo!.getRecentLocations(max: 8);
     }
 
     final savedKeys = _saved.map((s) => _locKey(s.lat, s.lon)).toSet();
@@ -201,6 +201,7 @@ class _LocationScreenState extends State<LocationScreen>
             cityName: result.name,
             countryCode: result.country,
             stateName: result.state,
+            provinceName: result.admin2,
           ),
         );
     _addToRecent(result);
@@ -227,9 +228,10 @@ class _LocationScreenState extends State<LocationScreen>
   // ─── Recent history ────────────────────────────────────────────────────────
   Future<void> _addToRecent(GeocodingResult result) async {
     if (_repo == null) return;
-    await _repo!.addRecentLocation(result);
+    await _repo!.addRecentLocation(result, max: 8);
     final savedKeys = _saved.map((s) => _locKey(s.lat, s.lon)).toSet();
-    _recentLocations = _dedupeRecent(_repo!.getRecentLocations(), savedKeys);
+    _recentLocations =
+        _dedupeRecent(_repo!.getRecentLocations(max: 8), savedKeys);
     await _persistRecent(_recentLocations);
     if (mounted) setState(() {});
   }
@@ -274,6 +276,7 @@ class _LocationScreenState extends State<LocationScreen>
     String name,
     String country, {
     String? state,
+    String? admin2,
   }) {
     context.read<WeatherBloc>().add(
           FetchWeatherByCoords(
@@ -282,6 +285,7 @@ class _LocationScreenState extends State<LocationScreen>
             cityName: name,
             countryCode: country,
             stateName: state,
+            provinceName: admin2,
           ),
         );
     final shell = context.findAncestorStateOfType<MainShellState>();
@@ -536,6 +540,7 @@ class _LocationScreenState extends State<LocationScreen>
                   loc.name,
                   loc.country,
                   state: loc.state,
+                  admin2: loc.admin2,
                 ),
                 onDelete: () => _removeLocation(loc.id),
                 onSetHome: () => _setHome(loc.id),
@@ -559,6 +564,7 @@ class _LocationScreenState extends State<LocationScreen>
                   r.name,
                   r.country,
                   state: r.state,
+                  admin2: r.admin2,
                 ),
                 onSave: _saved.any(
                   (s) =>
@@ -614,7 +620,7 @@ class _LocationScreenState extends State<LocationScreen>
 
   Future<void> _syncFromBloc(WeatherState blocState) async {
     if (_repo == null || !mounted) return;
-    final recent = _repo!.getRecentLocations();
+    final recent = _repo!.getRecentLocations(max: 8);
     final savedKeys = _saved.map((s) => _locKey(s.lat, s.lon)).toSet();
     final dedupedRecent = _dedupeRecent(recent, savedKeys);
     _recentLocations = dedupedRecent;
@@ -667,8 +673,8 @@ class _LocationScreenState extends State<LocationScreen>
     final result = <GeocodingResult>[];
     for (final loc in recent) {
       // 2-decimal key (~1 km grid) prevents GPS-drift duplicates
-      const roundedKey =
-          '\${loc.lat.toStringAsFixed(2)}_\${loc.lon.toStringAsFixed(2)}';
+      final roundedKey =
+          '${loc.lat.toStringAsFixed(2)}_${loc.lon.toStringAsFixed(2)}';
       // Skip if already in saved locations (fuzzy match within ~1 km)
       final inSaved = savedKeys.any((sk) {
         final parts = sk.split('_');
@@ -697,6 +703,7 @@ class _LocationScreenState extends State<LocationScreen>
                 'lon': r.lon,
                 'country': r.country,
                 'state': r.state,
+                'admin2': r.admin2,
               },
             )
             .toList(),
@@ -1223,8 +1230,8 @@ class _RecentLocationCard extends StatelessWidget {
     final current = weather?.current;
     final code = current?.weatherCode ?? 0;
     final isDay = (current?.isDay ?? 1) == 1;
-    final cityLabel =
-        LocationLabelFormatter.cityLine(result.name, result.state);
+    final cityLabel = LocationLabelFormatter.cityLine(result.name, result.state,
+        admin2: result.admin2);
     final countryLabel = result.country.trim();
 
     return GestureDetector(
@@ -1333,8 +1340,8 @@ class _SearchResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cityLabel =
-        LocationLabelFormatter.cityLine(result.name, result.state);
+    final cityLabel = LocationLabelFormatter.cityLine(result.name, result.state,
+        admin2: result.admin2);
     final countryLabel = result.country.trim();
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
