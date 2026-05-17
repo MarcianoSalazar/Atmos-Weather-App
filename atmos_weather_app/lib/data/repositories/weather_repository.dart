@@ -123,30 +123,25 @@ class WeatherRepository {
     }
   }
 
-  // Search locations using Open-Meteo Geocoding API (FREE)
+  // Search locations using Geoapify (primary — province-level precision)
+  // Falls back to Open-Meteo geocoding if Geoapify returns nothing.
   Future<List<GeocodingResult>> searchLocations(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return [];
 
-    if (kIsWeb) {
-      final webResults = await _searchGeoapify(trimmed);
-      if (webResults.isNotEmpty) return webResults;
+    // Always try Geoapify first — it returns city + county (province) correctly.
+    final geoapifyResults = await _searchGeoapify(trimmed);
+    if (geoapifyResults.isNotEmpty) return geoapifyResults;
 
-      final fallback = trimmed.split(',').first.trim();
-      if (fallback.isNotEmpty && fallback != trimmed) {
-        return _searchGeoapify(fallback);
-      }
+    // Fallback: Open-Meteo geocoding (no province data, but better than nothing)
+    _logger.w('Geoapify returned no results, falling back to Open-Meteo');
+    final openMeteoResults = await _searchOpenMeteo(trimmed);
+    if (openMeteoResults.isNotEmpty) return openMeteoResults;
 
-      return [];
-    }
-
-    final results = await _searchOpenMeteo(trimmed);
-    if (results.isNotEmpty) return results;
-
-    // If the user typed "City, Country", retry using the city only.
-    final fallback = trimmed.split(',').first.trim();
-    if (fallback.isNotEmpty && fallback != trimmed) {
-      return _searchOpenMeteo(fallback);
+    // Last resort: strip country qualifier and retry Open-Meteo
+    final cityOnly = trimmed.split(',').first.trim();
+    if (cityOnly.isNotEmpty && cityOnly != trimmed) {
+      return _searchOpenMeteo(cityOnly);
     }
 
     return [];
@@ -182,6 +177,7 @@ class WeatherRepository {
               lon: (e['longitude'] as num).toDouble(),
               country: e['country'] as String? ?? '',
               state: e['admin1'] as String?,
+              admin2: e['admin2'] as String?,
             ),
           )
           .toList();
@@ -197,7 +193,8 @@ class WeatherRepository {
   }
 
   Future<List<GeocodingResult>> _searchGeoapify(String query) async {
-    if (AppConstants.geoapifyApiKey == 'YOUR_GEOAPIFY_API_KEY') {
+    if (AppConstants.geoapifyApiKey.isEmpty ||
+        AppConstants.geoapifyApiKey == 'YOUR_GEOAPIFY_API_KEY') {
       return [];
     }
     try {
@@ -207,6 +204,7 @@ class WeatherRepository {
           'text': query,
           'format': 'json',
           'limit': 10,
+          'lang': 'en',
           'apiKey': AppConstants.geoapifyApiKey,
         },
       );
@@ -221,27 +219,84 @@ class WeatherRepository {
         data = <String, dynamic>{};
       }
 
-      final results = (data['results'] as List<dynamic>? ?? []).map((e) {
-        final name = (e['city'] as String?) ??
-            (e['town'] as String?) ??
-            (e['village'] as String?) ??
-            (e['name'] as String?) ??
-            (e['formatted'] as String?) ??
-            query;
-        final state = (e['state'] as String?) ??
-            (e['county'] as String?) ??
-            (e['region'] as String?);
-        final country = e['country'] as String? ?? '';
-        return GeocodingResult(
+      final raw = data['results'] as List<dynamic>? ?? [];
+      final results = <GeocodingResult>[];
+
+      for (final e in raw) {
+        final r = e as Map<String, dynamic>;
+
+        // ── City name ──────────────────────────────────────────────────────
+        // Geoapify result_type hierarchy tells us what kind of place this is.
+        // For cities/towns/villages we prefer the most specific place name.
+        final resultType = r['result_type'] as String? ?? '';
+        final String name;
+        if ([
+          'city',
+          'town',
+          'village',
+          'municipality',
+          'locality',
+          'suburb',
+          'district',
+          'quarter',
+          'neighbourhood'
+        ].contains(resultType)) {
+          // Prefer the most specific settlement field available.
+          // NOTE: Philippine municipalities come back as resultType='municipality'
+          // and Geoapify stores the name in 'municipality', not 'city'.
+          // We try 'municipality' before 'suburb'/'district' so it wins for PH.
+          name = (r['municipality'] as String?) ??
+              (r['city'] as String?) ??
+              (r['town'] as String?) ??
+              (r['village'] as String?) ??
+              (r['hamlet'] as String?) ??
+              (r['suburb'] as String?) ??
+              (r['district'] as String?) ??
+              (r['quarter'] as String?) ??
+              (r['name'] as String?) ??
+              (r['formatted'] as String? ?? query).split(',').first.trim();
+        } else {
+          // county, state, country level — just take the name field.
+          // But still try municipality/city first: Geoapify sometimes returns
+          // resultType='county' for small PH municipalities like "Bay, Laguna".
+          name = (r['municipality'] as String?) ??
+              (r['city'] as String?) ??
+              (r['town'] as String?) ??
+              (r['village'] as String?) ??
+              (r['name'] as String?) ??
+              (r['formatted'] as String? ?? query).split(',').first.trim();
+        }
+
+        // ── Province / admin2 ──────────────────────────────────────────────
+        // Geoapify: `county` = Philippine province, UK county, US county, etc.
+        // This is the most useful sub-national level to show users.
+        // We intentionally SKIP `state` (region level — too broad).
+        final admin2 = _pickProvince(r, resultType, name);
+
+        // ── admin1 (region) — kept internally, never shown ─────────────────
+        final state = r['state'] as String?;
+
+        final country = r['country'] as String? ?? '';
+        final lat = (r['lat'] as num?)?.toDouble();
+        final lon = (r['lon'] as num?)?.toDouble();
+        if (lat == null || lon == null) continue;
+
+        results.add(GeocodingResult(
           name: name,
-          lat: (e['lat'] as num).toDouble(),
-          lon: (e['lon'] as num).toDouble(),
+          lat: lat,
+          lon: lon,
           country: country,
           state: state,
-        );
-      }).toList();
+          admin2: admin2,
+        ));
+      }
 
-      return results;
+      // Deduplicate by ~1 km grid
+      final seen = <String>{};
+      return results.where((r) {
+        final key = '${r.lat.toStringAsFixed(2)}_${r.lon.toStringAsFixed(2)}';
+        return seen.add(key);
+      }).toList();
     } on DioException catch (e) {
       _logger.e('Geoapify search error: ${e.message}');
       return [];
@@ -249,6 +304,66 @@ class WeatherRepository {
       _logger.e('Geoapify parse error: ${e.message}');
       return [];
     }
+  }
+
+  /// Picks the best province/district label from a Geoapify result.
+  ///
+  /// For Philippine results, `county` is unreliable — it sometimes returns a
+  /// nearby city (e.g. "Alaminos") instead of the actual province ("Laguna").
+  /// `state_district` is more accurate for PH provinces.
+  /// Final fallback: parse the `formatted` address string which is structured
+  /// as "City, Province, Country" for Philippine results.
+  String? _pickProvince(
+    Map<String, dynamic> r,
+    String resultType,
+    String name,
+  ) {
+    // Hard bail for pure state/country results.
+    if (['state', 'country'].contains(resultType)) return null;
+
+    // For resultType='county': only suppress when the place IS the county itself.
+    if (resultType == 'county') {
+      final county = r['county'] as String?;
+      if (county != null &&
+          county.trim().toLowerCase() == name.trim().toLowerCase()) {
+        return null;
+      }
+    }
+
+    final country = (r['country'] as String? ?? '').trim().toLowerCase();
+    final stateDistrict = (r['state_district'] as String?)?.trim();
+    final county = (r['county'] as String?)?.trim();
+    final formatted = (r['formatted'] as String? ?? '').trim();
+
+    // For Philippines: prefer state_district (reliable province) over county
+    // (county often returns a nearby city-municipality, not the province).
+    if (country == 'philippines') {
+      if (stateDistrict != null &&
+          stateDistrict.toLowerCase() != name.toLowerCase()) {
+        return stateDistrict;
+      }
+      // Fallback: parse "City, Province, Philippines" from formatted string
+      final parts = formatted.split(',').map((s) => s.trim()).toList();
+      if (parts.length >= 2) {
+        // parts[0] = city/municipality, parts[1] = province (or district)
+        final candidate = parts[1];
+        if (candidate.isNotEmpty &&
+            candidate.toLowerCase() != name.toLowerCase() &&
+            candidate.toLowerCase() != 'philippines') {
+          return candidate;
+        }
+      }
+    }
+
+    // For all other countries: county first, then state_district.
+    if (county != null && county.toLowerCase() != name.toLowerCase()) {
+      return county;
+    }
+    if (stateDistrict != null &&
+        stateDistrict.toLowerCase() != name.toLowerCase()) {
+      return stateDistrict;
+    }
+    return null;
   }
 
   // Reverse geocode using Geoapify (web-friendly)
@@ -284,25 +399,59 @@ class WeatherRepository {
       if (results == null || results.isEmpty) return null;
 
       final first = results.first as Map<String, dynamic>;
-      final name = (first['city'] as String?) ??
+
+      // Prefer the most specific settlement field. 'municipality' is where
+      // Geoapify puts Philippine municipality names (e.g. "Bay", "Calauan").
+      final name = (first['municipality'] as String?) ??
+          (first['city'] as String?) ??
           (first['town'] as String?) ??
           (first['village'] as String?) ??
           (first['suburb'] as String?) ??
           (first['hamlet'] as String?) ??
           (first['name'] as String?) ??
-          (first['formatted'] as String?) ??
-          '';
-      final state = (first['state'] as String?) ??
-          (first['county'] as String?) ??
-          (first['region'] as String?) ??
-          (first['state_district'] as String?);
+          (first['formatted'] as String? ?? '').split(',').first.trim();
+
+      // Province extraction — mirrors _pickProvince logic.
+      // For Philippines, state_district is reliable; county is not (it can
+      // return a nearby city like "Alaminos" instead of the province "Laguna").
+      // Final fallback: parse "City, Province, Country" from the formatted string.
+      final countryName =
+          (first['country'] as String? ?? '').trim().toLowerCase();
+      final rawCounty = (first['county'] as String?)?.trim();
+      final rawStateDistrict = (first['state_district'] as String?)?.trim();
+      final formatted = (first['formatted'] as String? ?? '').trim();
+
+      String? admin2;
+      if (countryName == 'philippines') {
+        if (rawStateDistrict != null &&
+            rawStateDistrict.toLowerCase() != name.toLowerCase()) {
+          admin2 = rawStateDistrict;
+        } else {
+          final parts = formatted.split(',').map((s) => s.trim()).toList();
+          if (parts.length >= 2) {
+            final candidate = parts[1];
+            if (candidate.isNotEmpty &&
+                candidate.toLowerCase() != name.toLowerCase() &&
+                candidate.toLowerCase() != 'philippines') {
+              admin2 = candidate;
+            }
+          }
+        }
+      } else {
+        final rawAdmin2 = rawCounty ?? rawStateDistrict;
+        if (rawAdmin2 != null &&
+            rawAdmin2.toLowerCase() != name.toLowerCase()) {
+          admin2 = rawAdmin2;
+        }
+      }
 
       return GeocodingResult(
         name: name,
         lat: (first['lat'] as num?)?.toDouble() ?? lat,
         lon: (first['lon'] as num?)?.toDouble() ?? lon,
         country: first['country'] as String? ?? '',
-        state: state,
+        state: first['state'] as String?, // region — internal only
+        admin2: admin2, // province — shown in UI
       );
     } on DioException catch (e) {
       _logger.e('Geoapify reverse geocode error: ${e.message}');
@@ -460,12 +609,12 @@ class WeatherRepository {
 
   Future<void> addRecentLocation(
     GeocodingResult result, {
-    int max = 3,
+    int max = 8,
   }) async {
     final current = getRecentLocations(max: max);
-    current.removeWhere(
-      (r) => r.lat == result.lat && r.lon == result.lon,
-    );
+    // Remove existing entries within ~1 km of the new result
+    current.removeWhere((r) =>
+        (r.lat - result.lat).abs() < 0.01 && (r.lon - result.lon).abs() < 0.01);
     current.insert(0, result);
     final trimmed = current.length > max ? current.sublist(0, max) : current;
     await _prefs.setString(
@@ -479,6 +628,7 @@ class WeatherRepository {
                 'lon': r.lon,
                 'country': r.country,
                 'state': r.state,
+                'admin2': r.admin2,
               },
             )
             .toList(),
