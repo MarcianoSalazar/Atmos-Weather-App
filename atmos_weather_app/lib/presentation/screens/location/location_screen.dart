@@ -163,7 +163,7 @@ class _LocationScreenState extends State<LocationScreen>
       admin2: result.admin2,
       lat: result.lat,
       lon: result.lon,
-      isHome: _saved.isEmpty,
+      isHome: false,
       savedAt: DateTime.now(),
     );
     if (_saved.any((s) => s.id == newLoc.id)) {
@@ -238,6 +238,22 @@ class _LocationScreenState extends State<LocationScreen>
     if (mounted) setState(() {});
   }
 
+  Future<void> _clearRecentLocations() async {
+    if (_repo == null) return;
+    await _repo!.clearRecentLocations();
+    if (!mounted) return;
+    setState(() {
+      _recentLocations = [];
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Recently viewed locations cleared'),
+        backgroundColor: AppColors.primaryDark,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Future<void> _fetchWeatherForKey(double lat, double lon) async {
     if (_repo == null) return;
     final key = '${lat}_$lon';
@@ -251,19 +267,6 @@ class _LocationScreenState extends State<LocationScreen>
   Future<void> _removeLocation(String id) async {
     final prefs = await SharedPreferences.getInstance();
     _saved.removeWhere((s) => s.id == id);
-    await prefs.setString(
-      AppConstants.savedLocationsKey,
-      jsonEncode(_saved.map((s) => s.toJson()).toList()),
-    );
-    if (mounted) setState(() {});
-  }
-
-  // ─── Set home ──────────────────────────────────────────────────────────────
-  Future<void> _setHome(String id) async {
-    final prefs = await SharedPreferences.getInstance();
-    for (var i = 0; i < _saved.length; i++) {
-      _saved[i] = _saved[i].copyWith(isHome: _saved[i].id == id);
-    }
     await prefs.setString(
       AppConstants.savedLocationsKey,
       jsonEncode(_saved.map((s) => s.toJson()).toList()),
@@ -548,7 +551,6 @@ class _LocationScreenState extends State<LocationScreen>
                   admin2: loc.admin2,
                 ),
                 onDelete: () => _removeLocation(loc.id),
-                onSetHome: () => _setHome(loc.id),
               ).animate().fadeIn(duration: 300.ms, delay: (e.key * 60).ms);
             }),
             const SizedBox(height: 16),
@@ -556,7 +558,37 @@ class _LocationScreenState extends State<LocationScreen>
 
           // ── Recent locations ──────────────────────────────────────────────
           if (_recentLocations.isNotEmpty) ...[
-            const _SectionLabel(label: 'RECENTLY VIEWED'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const _SectionLabel(label: 'RECENTLY VIEWED'),
+                TextButton.icon(
+                  onPressed: _clearRecentLocations,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  icon: const Icon(
+                    Icons.delete_sweep_rounded,
+                    color: AppColors.white40,
+                    size: 16,
+                  ),
+                  label: const Text(
+                    'Clear',
+                    style: TextStyle(
+                      fontFamily: 'Rajdhani',
+                      fontSize: 13,
+                      color: AppColors.white40,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
             ..._recentLocations.asMap().entries.map((e) {
               final r = e.value;
               final key = '${r.lat}_${r.lon}';
@@ -651,7 +683,6 @@ class _LocationScreenState extends State<LocationScreen>
 
     if (mounted) setState(() {});
   }
-
 
   String _locKey(double lat, double lon) {
     return '${lat.toStringAsFixed(4)}_${lon.toStringAsFixed(4)}';
@@ -755,12 +786,12 @@ class LocationLabelFormatter {
     final cityClean = city.trim();
 
     // Prefer admin2 (province) over state (region)
-    if (admin2 != null && admin2.trim().isNotEmpty) {
-      final a2 = admin2.trim();
-      if (!_same(cityClean, a2)) return '$cityClean, $a2';
+    final admin2Clean = _cleanAdminName(admin2);
+    if (admin2Clean != null && admin2Clean.isNotEmpty) {
+      if (!_same(cityClean, admin2Clean)) return '$cityClean, $admin2Clean';
     }
 
-    final stateClean = state?.trim() ?? '';
+    final stateClean = _cleanAdminName(state) ?? '';
     if (stateClean.isEmpty) return cityClean;
     if (_same(cityClean, stateClean)) return cityClean;
 
@@ -771,6 +802,15 @@ class LocationLabelFormatter {
 
   static bool _same(String a, String b) =>
       a.trim().toLowerCase() == b.trim().toLowerCase();
+
+  static String? _cleanAdminName(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) return trimmed;
+    return trimmed.replaceFirst(
+      RegExp(r'^(province of|provincia de)\s+', caseSensitive: false),
+      '',
+    );
+  }
 
   static String? _mapState(String state) {
     final key = state.trim().toLowerCase();
@@ -973,14 +1013,12 @@ class _SavedLocationCard extends StatelessWidget {
   final OpenMeteoModel? weather;
   final VoidCallback onTap;
   final VoidCallback onDelete;
-  final VoidCallback onSetHome;
 
   const _SavedLocationCard({
     required this.location,
     required this.weather,
     required this.onTap,
     required this.onDelete,
-    required this.onSetHome,
   });
 
   // City landmark icons by country
@@ -1026,11 +1064,7 @@ class _SavedLocationCard extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: gradient,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: location.isHome
-                ? AppColors.tempYellow.withAlpha(128)
-                : AppColors.white10,
-          ),
+          border: Border.all(color: AppColors.white10),
         ),
         child: Row(
           children: [
@@ -1066,32 +1100,6 @@ class _SavedLocationCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (location.isHome) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.tempYellow.withAlpha(51),
-                            borderRadius: BorderRadius.circular(5),
-                            border: Border.all(
-                              color: AppColors.tempYellow.withAlpha(128),
-                            ),
-                          ),
-                          child: const Text(
-                            'HOME',
-                            style: TextStyle(
-                              fontFamily: 'Rajdhani',
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.tempYellow,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                   Text(
@@ -1160,27 +1168,6 @@ class _SavedLocationCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               itemBuilder: (_) => [
-                if (!location.isHome)
-                  const PopupMenuItem(
-                    value: 'home',
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.home_rounded,
-                          color: AppColors.tempYellow,
-                          size: 18,
-                        ),
-                        SizedBox(width: 10),
-                        Text(
-                          'Set as Home',
-                          style: TextStyle(
-                            fontFamily: 'Rajdhani',
-                            color: AppColors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 const PopupMenuItem(
                   value: 'delete',
                   child: Row(
@@ -1203,7 +1190,6 @@ class _SavedLocationCard extends StatelessWidget {
                 ),
               ],
               onSelected: (v) {
-                if (v == 'home') onSetHome();
                 if (v == 'delete') onDelete();
               },
             ),
