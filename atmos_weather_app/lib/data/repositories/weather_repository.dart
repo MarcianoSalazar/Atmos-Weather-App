@@ -20,7 +20,8 @@ class WeatherRepository {
     _refreshUnreadAlerts();
   }
 
-  // Fetch current + hourly + daily forecast from Open-Meteo (FREE, no key required)
+  // ─── Open-Meteo forecast ──────────────────────────────────────────────────
+
   Future<OpenMeteoModel> fetchOpenMeteoForecast({
     required double lat,
     required double lon,
@@ -71,7 +72,6 @@ class WeatherRepository {
       final model =
           OpenMeteoModel.fromJson(response.data as Map<String, dynamic>);
 
-      // Cache the result
       await _prefs.setString(
         AppConstants.currentWeatherCache,
         jsonEncode(response.data),
@@ -89,7 +89,8 @@ class WeatherRepository {
     }
   }
 
-  // Fetch air quality from Open-Meteo Air Quality API (FREE)
+  // ─── Air quality ──────────────────────────────────────────────────────────
+
   Future<AirQualityModel?> fetchAirQuality({
     required double lat,
     required double lon,
@@ -123,37 +124,127 @@ class WeatherRepository {
     }
   }
 
-  // Search locations using Geoapify (primary — province-level precision)
-  // Falls back to Open-Meteo geocoding if Geoapify returns nothing.
+  // ─── Forward geocoding (search) — OWM only ────────────────────────────────
+  //
+  // OWM Geocoding API returns:
+  //   name      → city / town / municipality
+  //   local_names → localised names (we use 'en' when present)
+  //   country   → ISO-2 code  (we expand to full name)
+  //   state     → admin1: province / state / region
+  //
+  // We store:
+  //   GeocodingResult.name    = city/town/municipality
+  //   GeocodingResult.admin2  = province  (= OWM `state` field, which is
+  //                             actually the province for PH, not a region)
+  //   GeocodingResult.country = full country name
+  //   GeocodingResult.state   = same as admin2 (kept for legacy callers)
+
   Future<List<GeocodingResult>> searchLocations(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return [];
 
-    // Always try Geoapify first — it returns city + county (province) correctly.
-    final geoapifyResults = await _searchGeoapify(trimmed);
-    if (geoapifyResults.isNotEmpty) return geoapifyResults;
+    final results = <GeocodingResult>[];
+    final seen = <String>{};
 
-    // Fallback: Open-Meteo geocoding (no province data, but better than nothing)
-    _logger.w('Geoapify returned no results, falling back to Open-Meteo');
-    final openMeteoResults = await _searchOpenMeteo(trimmed);
-    if (openMeteoResults.isNotEmpty) return openMeteoResults;
-
-    // Last resort: strip country qualifier and retry Open-Meteo
-    final cityOnly = trimmed.split(',').first.trim();
-    if (cityOnly.isNotEmpty && cityOnly != trimmed) {
-      return _searchOpenMeteo(cityOnly);
+    Future<void> addResults(Future<List<GeocodingResult>> future) async {
+      final batch = await future;
+      for (final result in batch) {
+        final key =
+            '${result.lat.toStringAsFixed(2)}_${result.lon.toStringAsFixed(2)}';
+        if (seen.add(key)) {
+          results.add(result);
+        }
+      }
     }
 
-    return [];
+    Future<void> searchVariant(String value) async {
+      if (value.trim().isEmpty) return;
+      if (AppConstants.openWeatherApiKey.isNotEmpty &&
+          AppConstants.openWeatherApiKey != 'YOUR_OPENWEATHERMAP_API_KEY') {
+        await addResults(_searchOwmGeocoding(value));
+      }
+      await addResults(_searchOpenMeteoGeocoding(value));
+    }
+
+    await searchVariant(trimmed);
+
+    final shorter = _shortenLocationQuery(trimmed);
+    if ((results.isEmpty || results.every(_isProvinceLikeResult)) &&
+        shorter != null &&
+        shorter != trimmed) {
+      await searchVariant(shorter);
+    }
+
+    if (results.isEmpty && !trimmed.toLowerCase().contains('philippines')) {
+      await searchVariant('$trimmed Philippines');
+    }
+
+    return results;
   }
 
-  Future<List<GeocodingResult>> _searchOpenMeteo(String query) async {
+  Future<List<GeocodingResult>> _searchOwmGeocoding(String query) async {
+    try {
+      final Response<List<dynamic>> response = await _dio.get<List<dynamic>>(
+        '${AppConstants.owmGeoUrl}/direct',
+        queryParameters: {
+          'q': query,
+          'limit': 10,
+          'appid': AppConstants.openWeatherApiKey,
+        },
+      );
+
+      final data = response.data;
+      if (data == null || data.isEmpty) return [];
+
+      final results = <GeocodingResult>[];
+      for (final e in data) {
+        final r = e as Map<String, dynamic>;
+
+        // Prefer English local name if available
+        final localNames = r['local_names'] as Map<String, dynamic>?;
+        final name = (localNames?['en'] as String?) ??
+            (r['name'] as String? ?? '').trim();
+        if (name.isEmpty || _looksLikeRoad(name)) continue;
+
+        final lat = (r['lat'] as num?)?.toDouble();
+        final lon = (r['lon'] as num?)?.toDouble();
+        if (lat == null || lon == null) continue;
+
+        // OWM `state` = province for PH (e.g. "Laguna"), state for US, etc.
+        final province = _normalizeAdminName((r['state'] as String?)?.trim());
+        final countryIso = (r['country'] as String? ?? '').trim();
+        final countryFull = _expandCountry(countryIso);
+
+        results.add(GeocodingResult(
+          name: name,
+          lat: lat,
+          lon: lon,
+          country: countryFull,
+          state: province, // region/state (internal)
+          admin2: province, // province shown in UI
+        ));
+      }
+
+      // Deduplicate by ~1 km grid
+      final seen = <String>{};
+      return results.where((r) {
+        final key = '${r.lat.toStringAsFixed(2)}_${r.lon.toStringAsFixed(2)}';
+        return seen.add(key);
+      }).toList();
+    } on DioException catch (e) {
+      _logger.e('OWM geocoding search error: ${e.message}');
+      return [];
+    }
+  }
+
+  /// Open-Meteo free geocoding fallback (no API key needed).
+  Future<List<GeocodingResult>> _searchOpenMeteoGeocoding(String query) async {
     try {
       final Response<dynamic> response = await _dio.get<dynamic>(
         'https://geocoding-api.open-meteo.com/v1/search',
         queryParameters: {
           'name': query,
-          'count': 10,
+          'count': 20,
           'language': 'en',
           'format': 'json',
         },
@@ -170,363 +261,64 @@ class WeatherRepository {
       }
 
       final results = (data['results'] as List<dynamic>? ?? [])
-          .map(
-            (e) => GeocodingResult(
-              name: e['name'] as String,
+          .map((e) {
+            final name = (e['name'] as String? ?? '').trim();
+            final province = _normalizeAdminName(
+              (e['admin2'] as String?)?.trim() ??
+                  (e['admin1'] as String?)?.trim(),
+            );
+            final countryRaw = e['country'] as String? ?? '';
+            final countryFull = _expandCountry(countryRaw.length == 2
+                ? countryRaw
+                : (e['country_code'] as String? ?? countryRaw));
+            return GeocodingResult(
+              name: name,
               lat: (e['latitude'] as num).toDouble(),
               lon: (e['longitude'] as num).toDouble(),
-              country: e['country'] as String? ?? '',
-              state: e['admin1'] as String?,
-              admin2: e['admin2'] as String?,
-            ),
-          )
+              country: countryFull,
+              state: _normalizeAdminName((e['admin1'] as String?)?.trim()),
+              admin2: province,
+            );
+          })
+          .where((r) => r.name.isNotEmpty)
           .toList();
 
       return results;
     } on DioException catch (e) {
-      _logger.e('Geocoding search error: ${e.message}');
-      return [];
-    } on FormatException catch (e) {
-      _logger.e('Geocoding parse error: ${e.message}');
+      _logger.e('Open-Meteo geocoding fallback error: ${e.message}');
       return [];
     }
   }
 
-  Future<List<GeocodingResult>> _searchGeoapify(String query) async {
-    if (AppConstants.geoapifyApiKey.isEmpty ||
-        AppConstants.geoapifyApiKey == 'YOUR_GEOAPIFY_API_KEY') {
-      return [];
-    }
-    try {
-      final Response<dynamic> response = await _dio.get<dynamic>(
-        'https://api.geoapify.com/v1/geocode/search',
-        queryParameters: {
-          'text': query,
-          'format': 'json',
-          'limit': 10,
-          'lang': 'en',
-          'apiKey': AppConstants.geoapifyApiKey,
-        },
-      );
+  // ─── Reverse geocoding — OWM only ────────────────────────────────────────
+  //
+  // OWM /geo/1.0/reverse returns:
+  //   name    → city/town/municipality  (curated, avoids road names)
+  //   country → ISO-2 (we expand)
+  //   state   → province/state (e.g. "Laguna" for PH, "California" for US)
+  //
+  // Display format: "Calauan, Laguna [Philippines]"
+  //   cityName  = name
+  //   admin2    = state  (province)
+  //   country   = _expandCountry(country ISO-2)
 
-      final payload = response.data;
-      Map<String, dynamic> data;
-      if (payload is Map<String, dynamic>) {
-        data = payload;
-      } else if (payload is String) {
-        data = jsonDecode(payload) as Map<String, dynamic>;
-      } else {
-        data = <String, dynamic>{};
-      }
-
-      final raw = data['results'] as List<dynamic>? ?? [];
-      final results = <GeocodingResult>[];
-
-      for (final e in raw) {
-        final r = e as Map<String, dynamic>;
-
-        // ── City name ──────────────────────────────────────────────────────
-        // Geoapify result_type hierarchy tells us what kind of place this is.
-        // For cities/towns/villages we prefer the most specific place name.
-        final resultType = r['result_type'] as String? ?? '';
-        final String name;
-        if ([
-          'city',
-          'town',
-          'village',
-          'municipality',
-          'locality',
-          'suburb',
-          'district',
-          'quarter',
-          'neighbourhood'
-        ].contains(resultType)) {
-          // Prefer the most specific settlement field available.
-          // NOTE: Philippine municipalities come back as resultType='municipality'
-          // and Geoapify stores the name in 'municipality', not 'city'.
-          // We try 'municipality' before 'suburb'/'district' so it wins for PH.
-          name = (r['municipality'] as String?) ??
-              (r['city'] as String?) ??
-              (r['town'] as String?) ??
-              (r['village'] as String?) ??
-              (r['hamlet'] as String?) ??
-              (r['suburb'] as String?) ??
-              (r['district'] as String?) ??
-              (r['quarter'] as String?) ??
-              (r['name'] as String?) ??
-              (r['formatted'] as String? ?? query).split(',').first.trim();
-        } else {
-          // county, state, country level — just take the name field.
-          // But still try municipality/city first: Geoapify sometimes returns
-          // resultType='county' for small PH municipalities like "Bay, Laguna".
-          name = (r['municipality'] as String?) ??
-              (r['city'] as String?) ??
-              (r['town'] as String?) ??
-              (r['village'] as String?) ??
-              (r['name'] as String?) ??
-              (r['formatted'] as String? ?? query).split(',').first.trim();
-        }
-
-        // ── Province / admin2 ──────────────────────────────────────────────
-        // Geoapify: `county` = Philippine province, UK county, US county, etc.
-        // This is the most useful sub-national level to show users.
-        // We intentionally SKIP `state` (region level — too broad).
-        final admin2 = _pickProvince(r, resultType, name);
-
-        // ── admin1 (region) — kept internally, never shown ─────────────────
-        final state = r['state'] as String?;
-
-        final country = r['country'] as String? ?? '';
-        final lat = (r['lat'] as num?)?.toDouble();
-        final lon = (r['lon'] as num?)?.toDouble();
-        if (lat == null || lon == null) continue;
-
-        results.add(GeocodingResult(
-          name: name,
-          lat: lat,
-          lon: lon,
-          country: country,
-          state: state,
-          admin2: admin2,
-        ));
-      }
-
-      // Deduplicate by ~1 km grid
-      final seen = <String>{};
-      return results.where((r) {
-        final key = '${r.lat.toStringAsFixed(2)}_${r.lon.toStringAsFixed(2)}';
-        return seen.add(key);
-      }).toList();
-    } on DioException catch (e) {
-      _logger.e('Geoapify search error: ${e.message}');
-      return [];
-    } on FormatException catch (e) {
-      _logger.e('Geoapify parse error: ${e.message}');
-      return [];
-    }
-  }
-
-  /// Picks the best province/district label from a Geoapify result.
-  ///
-  /// For Philippine results, `county` is unreliable — it sometimes returns a
-  /// nearby city (e.g. "Alaminos") instead of the actual province ("Laguna").
-  /// `state_district` is more accurate for PH provinces.
-  /// Final fallback: parse the `formatted` address string which is structured
-  /// as "City, Province, Country" for Philippine results.
-  String? _pickProvince(
-    Map<String, dynamic> r,
-    String resultType,
-    String name,
-  ) {
-    // Hard bail for pure state/country results.
-    if (['state', 'country'].contains(resultType)) return null;
-
-    // For resultType='county': only suppress when the place IS the county itself.
-    if (resultType == 'county') {
-      final county = r['county'] as String?;
-      if (county != null &&
-          county.trim().toLowerCase() == name.trim().toLowerCase()) {
-        return null;
-      }
-    }
-
-    final country = (r['country'] as String? ?? '').trim().toLowerCase();
-    final stateDistrict = (r['state_district'] as String?)?.trim();
-    final county = (r['county'] as String?)?.trim();
-    final formatted = (r['formatted'] as String? ?? '').trim();
-
-    // For Philippines: prefer state_district (reliable province) over county
-    // (county often returns a nearby city-municipality, not the province).
-    if (country == 'philippines') {
-      if (stateDistrict != null &&
-          stateDistrict.toLowerCase() != name.toLowerCase()) {
-        return stateDistrict;
-      }
-      // Fallback: parse "City, Province, Philippines" from formatted string
-      final parts = formatted.split(',').map((s) => s.trim()).toList();
-      if (parts.length >= 2) {
-        // parts[0] = city/municipality, parts[1] = province (or district)
-        final candidate = parts[1];
-        if (candidate.isNotEmpty &&
-            candidate.toLowerCase() != name.toLowerCase() &&
-            candidate.toLowerCase() != 'philippines') {
-          return candidate;
-        }
-      }
-    }
-
-    // For all other countries: county first, then state_district.
-    if (county != null && county.toLowerCase() != name.toLowerCase()) {
-      return county;
-    }
-    if (stateDistrict != null &&
-        stateDistrict.toLowerCase() != name.toLowerCase()) {
-      return stateDistrict;
-    }
-    return null;
-  }
-
-  // Reverse geocode using Geoapify (web-friendly)
-  Future<GeocodingResult?> reverseGeocodeGeoapify({
+  Future<GeocodingResult?> reverseGeocode({
     required double lat,
     required double lon,
   }) async {
-    if (AppConstants.geoapifyApiKey == 'YOUR_GEOAPIFY_API_KEY') {
+    if (kIsWeb) return null; // CORS blocks OWM on web
+    if (AppConstants.openWeatherApiKey.isEmpty ||
+        AppConstants.openWeatherApiKey == 'YOUR_OPENWEATHERMAP_API_KEY') {
       return null;
     }
-    try {
-      final Response<dynamic> response = await _dio.get<dynamic>(
-        'https://api.geoapify.com/v1/geocode/reverse',
-        queryParameters: {
-          'lat': lat,
-          'lon': lon,
-          'format': 'json',
-          'apiKey': AppConstants.geoapifyApiKey,
-        },
-      );
 
-      final payload = response.data;
-      Map<String, dynamic> data;
-      if (payload is Map<String, dynamic>) {
-        data = payload;
-      } else if (payload is String) {
-        data = jsonDecode(payload) as Map<String, dynamic>;
-      } else {
-        data = <String, dynamic>{};
-      }
-
-      final results = data['results'] as List<dynamic>?;
-      if (results == null || results.isEmpty) return null;
-
-      // Find the best result — skip roads, streets, and amenities.
-      // Geoapify sometimes returns a road as the top result for GPS coordinates
-      // that fall on or near a named road (e.g. "Calauan-Nagcarlan Road").
-      // We want a settlement (municipality, city, town, village, suburb).
-      const settlementTypes = {
-        'city',
-        'town',
-        'village',
-        'municipality',
-        'locality',
-        'suburb',
-        'district',
-        'quarter',
-        'neighbourhood',
-        'county',
-      };
-      const skipTypes = {
-        'road',
-        'street',
-        'amenity',
-        'building',
-        'postcode',
-      };
-
-      Map<String, dynamic>? best;
-      for (final e in results) {
-        final r = e as Map<String, dynamic>;
-        final rt = (r['result_type'] as String? ?? '').toLowerCase();
-        if (settlementTypes.contains(rt)) {
-          best = r;
-          break;
-        }
-      }
-      // If no settlement found, use first non-road result
-      if (best == null) {
-        for (final e in results) {
-          final r = e as Map<String, dynamic>;
-          final rt = (r['result_type'] as String? ?? '').toLowerCase();
-          if (!skipTypes.contains(rt)) {
-            best = r;
-            break;
-          }
-        }
-      }
-      // Last resort: just use first result
-      best ??= results.first as Map<String, dynamic>;
-
-      final first = best;
-
-      // Always resolve to a settlement name — never a road or POI name.
-      // 'municipality' is where Geoapify puts PH municipality names.
-      final name = (first['municipality'] as String?) ??
-          (first['city'] as String?) ??
-          (first['town'] as String?) ??
-          (first['village'] as String?) ??
-          (first['suburb'] as String?) ??
-          (first['hamlet'] as String?) ??
-          (first['county'] as String?) ??
-          (first['formatted'] as String? ?? '').split(',').first.trim();
-
-      // Province extraction — mirrors _pickProvince logic.
-      // For Philippines, state_district is reliable; county is not (it can
-      // return a nearby city like "Alaminos" instead of the province "Laguna").
-      // Final fallback: parse "City, Province, Country" from the formatted string.
-      final countryName =
-          (first['country'] as String? ?? '').trim().toLowerCase();
-      final rawCounty = (first['county'] as String?)?.trim();
-      final rawStateDistrict = (first['state_district'] as String?)?.trim();
-      final formatted = (first['formatted'] as String? ?? '').trim();
-
-      String? admin2;
-      if (countryName == 'philippines') {
-        if (rawStateDistrict != null &&
-            rawStateDistrict.toLowerCase() != name.toLowerCase()) {
-          admin2 = rawStateDistrict;
-        } else {
-          final parts = formatted.split(',').map((s) => s.trim()).toList();
-          if (parts.length >= 2) {
-            final candidate = parts[1];
-            if (candidate.isNotEmpty &&
-                candidate.toLowerCase() != name.toLowerCase() &&
-                candidate.toLowerCase() != 'philippines') {
-              admin2 = candidate;
-            }
-          }
-        }
-      } else {
-        final rawAdmin2 = rawCounty ?? rawStateDistrict;
-        if (rawAdmin2 != null &&
-            rawAdmin2.toLowerCase() != name.toLowerCase()) {
-          admin2 = rawAdmin2;
-        }
-      }
-
-      return GeocodingResult(
-        name: name,
-        lat: (first['lat'] as num?)?.toDouble() ?? lat,
-        lon: (first['lon'] as num?)?.toDouble() ?? lon,
-        country: first['country'] as String? ?? '',
-        state: first['state'] as String?, // region — internal only
-        admin2: admin2, // province — shown in UI
-      );
-    } on DioException catch (e) {
-      _logger.e('Geoapify reverse geocode error: ${e.message}');
-      return null;
-    } on FormatException catch (e) {
-      _logger.e('Geoapify reverse geocode parse error: ${e.message}');
-      return null;
-    }
-  }
-
-  // Reverse geocode using OpenWeatherMap (more specific place names)
-  Future<GeocodingResult?> reverseGeocodeOwm({
-    required double lat,
-    required double lon,
-  }) async {
-    if (kIsWeb) {
-      return null; // OWM reverse geocode is blocked by CORS on web builds.
-    }
-    if (AppConstants.openWeatherApiKey == 'YOUR_OPENWEATHERMAP_API_KEY') {
-      return null;
-    }
     try {
       final Response<List<dynamic>> response = await _dio.get<List<dynamic>>(
         '${AppConstants.owmGeoUrl}/reverse',
         queryParameters: {
           'lat': lat,
           'lon': lon,
-          'limit': 1,
+          'limit': 5,
           'appid': AppConstants.openWeatherApiKey,
         },
       );
@@ -534,13 +326,37 @@ class WeatherRepository {
       final data = response.data;
       if (data == null || data.isEmpty) return null;
 
-      final first = data.first as Map<String, dynamic>;
+      // Pick first non-road result
+      Map<String, dynamic>? best;
+      for (final e in data) {
+        final r = e as Map<String, dynamic>;
+        final n = (r['name'] as String? ?? '').trim();
+        if (n.isNotEmpty && !_looksLikeRoad(n)) {
+          best = r;
+          break;
+        }
+      }
+      if (best == null) return null;
+
+      // Prefer English local name when available
+      final localNames = best['local_names'] as Map<String, dynamic>?;
+      final cityName = (localNames?['en'] as String?)?.trim() ??
+          (best['name'] as String? ?? '').trim();
+
+      if (cityName.isEmpty) return null;
+
+      // OWM `state` = province for PH (e.g. "Laguna"), state for US, etc.
+      final province = _normalizeAdminName((best['state'] as String?)?.trim());
+      final countryIso = (best['country'] as String? ?? '').trim();
+      final countryFull = _expandCountry(countryIso);
+
       return GeocodingResult(
-        name: first['name'] as String? ?? '',
-        lat: (first['lat'] as num?)?.toDouble() ?? lat,
-        lon: (first['lon'] as num?)?.toDouble() ?? lon,
-        country: first['country'] as String? ?? '',
-        state: first['state'] as String?,
+        name: cityName,
+        lat: lat,
+        lon: lon,
+        country: countryFull,
+        state: province, // kept for legacy callers
+        admin2: province, // province shown in UI: "Calauan, Laguna"
       );
     } on DioException catch (e) {
       _logger.e('OWM reverse geocode error: ${e.message}');
@@ -548,7 +364,138 @@ class WeatherRepository {
     }
   }
 
-  // Get weather for multiple saved locations
+  // ─── ISO-2 → full country name ────────────────────────────────────────────
+
+  static const Map<String, String> _isoToCountry = {
+    'PH': 'Philippines',
+    'US': 'United States',
+    'GB': 'United Kingdom',
+    'AU': 'Australia',
+    'CA': 'Canada',
+    'JP': 'Japan',
+    'KR': 'South Korea',
+    'CN': 'China',
+    'IN': 'India',
+    'SG': 'Singapore',
+    'MY': 'Malaysia',
+    'ID': 'Indonesia',
+    'TH': 'Thailand',
+    'VN': 'Vietnam',
+    'DE': 'Germany',
+    'FR': 'France',
+    'IT': 'Italy',
+    'ES': 'Spain',
+    'BR': 'Brazil',
+    'MX': 'Mexico',
+    'ZA': 'South Africa',
+    'AE': 'United Arab Emirates',
+    'SA': 'Saudi Arabia',
+    'NZ': 'New Zealand',
+    'HK': 'Hong Kong',
+    'TW': 'Taiwan',
+    'NL': 'Netherlands',
+    'SE': 'Sweden',
+    'NO': 'Norway',
+    'DK': 'Denmark',
+    'FI': 'Finland',
+    'PT': 'Portugal',
+    'RU': 'Russia',
+    'TR': 'Turkey',
+    'PL': 'Poland',
+    'UA': 'Ukraine',
+    'NG': 'Nigeria',
+    'EG': 'Egypt',
+    'KE': 'Kenya',
+    'GH': 'Ghana',
+    'ET': 'Ethiopia',
+    'PK': 'Pakistan',
+    'BD': 'Bangladesh',
+    'LK': 'Sri Lanka',
+    'MM': 'Myanmar',
+    'KH': 'Cambodia',
+    'LA': 'Laos',
+    'TL': 'Timor-Leste',
+    'BN': 'Brunei',
+    'MO': 'Macau',
+    'AR': 'Argentina',
+    'CL': 'Chile',
+    'CO': 'Colombia',
+    'PE': 'Peru',
+    'VE': 'Venezuela',
+    'EC': 'Ecuador',
+  };
+
+  static String _expandCountry(String raw) {
+    final t = raw.trim();
+    if (t.length != 2) return t;
+    return _isoToCountry[t.toUpperCase()] ?? t;
+  }
+
+  static String? _normalizeAdminName(String? raw) {
+    final value = raw?.trim();
+    if (value == null || value.isEmpty) return value;
+    return value.replaceFirst(
+        RegExp(r'^(province of|provincia de)\s+', caseSensitive: false), '');
+  }
+
+  static bool _looksLikeRoad(String s) {
+    final lo = s.toLowerCase();
+    const roadWords = [
+      ' road',
+      ' rd',
+      ' street',
+      ' st.',
+      ' avenue',
+      ' ave',
+      ' highway',
+      ' hwy',
+      ' boulevard',
+      ' blvd',
+      ' drive',
+      ' dr',
+      ' lane',
+      ' ln',
+      ' expressway',
+      ' freeway',
+      ' bypass',
+      ' national road',
+      ' national highway',
+      ' flyover',
+      ' overpass',
+    ];
+    for (final w in roadWords) {
+      if (lo.endsWith(w) || lo.contains('$w ') || lo.contains('$w,')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool _isProvinceLikeResult(GeocodingResult result) {
+    final name = result.name.trim().toLowerCase();
+    final admin2 = result.admin2?.trim().toLowerCase() ?? '';
+    final state = result.state?.trim().toLowerCase() ?? '';
+    return name.startsWith('province of ') ||
+        (name.isNotEmpty && name == admin2) ||
+        (name.isNotEmpty && name == state);
+  }
+
+  static String? _shortenLocationQuery(String query) {
+    final cleaned = query.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (cleaned.isEmpty) return null;
+
+    if (cleaned.contains(',')) {
+      final parts = cleaned.split(',').map((p) => p.trim()).toList();
+      if (parts.first.isNotEmpty) return parts.first;
+    }
+
+    final words = cleaned.split(' ');
+    if (words.length <= 1) return null;
+    return words.sublist(0, words.length - 1).join(' ').trim();
+  }
+
+  // ─── Multiple saved locations weather ─────────────────────────────────────
+
   Future<Map<String, OpenMeteoModel>> fetchMultipleLocations(
     List<SavedLocation> locations,
   ) async {
@@ -565,13 +512,14 @@ class WeatherRepository {
     return results;
   }
 
-  // Fetch OpenWeatherMap data (with API key)
+  // ─── OWM One-Call (optional) ──────────────────────────────────────────────
+
   Future<Map<String, dynamic>?> fetchOpenWeatherMap({
     required double lat,
     required double lon,
   }) async {
     if (AppConstants.openWeatherApiKey == 'YOUR_OPENWEATHERMAP_API_KEY') {
-      return null; // Skip if no key configured
+      return null;
     }
     try {
       final Response<Map<String, dynamic>> response =
@@ -592,7 +540,8 @@ class WeatherRepository {
     }
   }
 
-  // Saved Locations CRUD
+  // ─── Saved locations CRUD ─────────────────────────────────────────────────
+
   List<SavedLocation> getSavedLocations() {
     final stored = _prefs.getString(AppConstants.savedLocationsKey);
     if (stored == null) return [];
@@ -639,7 +588,8 @@ class WeatherRepository {
     );
   }
 
-  // Recent locations
+  // ─── Recent locations ─────────────────────────────────────────────────────
+
   List<GeocodingResult> getRecentLocations({int max = 5}) {
     final stored = _prefs.getString(AppConstants.recentLocationsKey);
     if (stored == null) return [];
@@ -659,7 +609,6 @@ class WeatherRepository {
     int max = 5,
   }) async {
     final current = getRecentLocations(max: max);
-    // Remove existing entries within ~1 km of the new result
     current.removeWhere((r) =>
         (r.lat - result.lat).abs() < 0.01 && (r.lon - result.lon).abs() < 0.01);
     current.insert(0, result);
@@ -668,22 +617,26 @@ class WeatherRepository {
       AppConstants.recentLocationsKey,
       jsonEncode(
         trimmed
-            .map(
-              (r) => {
-                'name': r.name,
-                'lat': r.lat,
-                'lon': r.lon,
-                'country': r.country,
-                'state': r.state,
-                'admin2': r.admin2,
-              },
-            )
+            .map((r) => {
+                  'name': r.name,
+                  'lat': r.lat,
+                  'lon': r.lon,
+                  'country': r.country,
+                  'state': r.state,
+                  'admin2': r.admin2,
+                })
             .toList(),
       ),
     );
   }
 
-  // Alerts
+  /// Clears all recent location search history.
+  Future<void> clearRecentLocations() async {
+    await _prefs.remove(AppConstants.recentLocationsKey);
+  }
+
+  // ─── Alerts ───────────────────────────────────────────────────────────────
+
   List<WeatherAlert> getStoredAlerts() {
     final stored = _prefs.getString(AppConstants.alertsKey);
     if (stored == null) return [];
@@ -728,7 +681,8 @@ class WeatherRepository {
     unreadAlerts.value = alerts.where((a) => !a.isRead).length;
   }
 
-  // Settings
+  // ─── Settings ─────────────────────────────────────────────────────────────
+
   AppSettings getSettings() {
     final stored = _prefs.getString(AppConstants.settingsKey);
     if (stored == null) return AppSettings();
@@ -746,7 +700,8 @@ class WeatherRepository {
     );
   }
 
-  // Cache helpers
+  // ─── Cache helpers ────────────────────────────────────────────────────────
+
   OpenMeteoModel? _getCachedOpenMeteo() {
     final stored = _prefs.getString(AppConstants.currentWeatherCache);
     if (stored == null) return null;
