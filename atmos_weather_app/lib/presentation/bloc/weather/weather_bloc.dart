@@ -21,17 +21,20 @@ class FetchWeatherByCoords extends WeatherEvent {
   final double lat;
   final double lon;
   final String? cityName;
-  final String? countryCode; // ← now passed in explicitly
+  final String? countryCode;
   final String? stateName;
+  final String? provinceName; // admin2 — province/district level
   const FetchWeatherByCoords({
     required this.lat,
     required this.lon,
     this.cityName,
     this.countryCode,
     this.stateName,
+    this.provinceName,
   });
   @override
-  List<Object?> get props => [lat, lon, cityName, countryCode, stateName];
+  List<Object?> get props =>
+      [lat, lon, cityName, countryCode, stateName, provinceName];
 }
 
 class RefreshWeather extends WeatherEvent {
@@ -70,6 +73,7 @@ class WeatherRefreshing extends WeatherState {
   final String cityName;
   final String countryCode;
   final String stateName;
+  final String? provinceName; // admin2 — province/district level
   final double lat;
   final double lon;
   const WeatherRefreshing({
@@ -78,12 +82,21 @@ class WeatherRefreshing extends WeatherState {
     required this.cityName,
     required this.countryCode,
     required this.stateName,
+    this.provinceName,
     required this.lat,
     required this.lon,
   });
   @override
-  List<Object?> get props =>
-      [weather, airQuality, cityName, countryCode, stateName, lat, lon];
+  List<Object?> get props => [
+        weather,
+        airQuality,
+        cityName,
+        countryCode,
+        stateName,
+        provinceName,
+        lat,
+        lon
+      ];
 }
 
 class WeatherLoaded extends WeatherState {
@@ -92,6 +105,7 @@ class WeatherLoaded extends WeatherState {
   final String cityName;
   final String countryCode;
   final String stateName;
+  final String? provinceName; // admin2 — province/district level
   final double lat;
   final double lon;
   final DateTime lastUpdated;
@@ -101,6 +115,7 @@ class WeatherLoaded extends WeatherState {
     required this.cityName,
     required this.countryCode,
     required this.stateName,
+    this.provinceName,
     required this.lat,
     required this.lon,
     required this.lastUpdated,
@@ -112,6 +127,7 @@ class WeatherLoaded extends WeatherState {
         cityName,
         countryCode,
         stateName,
+        provinceName,
         lat,
         lon,
         lastUpdated,
@@ -153,6 +169,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
   String _currentCity = '';
   String _currentCountry = '';
   String _currentState = '';
+  String? _currentProvince; // admin2
 
   WeatherBloc({required WeatherRepository repository})
       : _repository = repository,
@@ -174,7 +191,6 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
       _currentLat = position.latitude;
       _currentLon = position.longitude;
 
-      // Reverse-geocode to get the TRUE city + country
       final geo = await _repository.reverseGeocodeGeoapify(
         lat: _currentLat!,
         lon: _currentLon!,
@@ -182,6 +198,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
       _currentCity = geo?.name ?? 'Your Location';
       _currentCountry = geo?.country ?? '';
       _currentState = geo?.state ?? '';
+      _currentProvince = geo?.admin2;
 
       await _repository.addRecentLocation(
         GeocodingResult(
@@ -190,6 +207,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
           lon: _currentLon!,
           country: _currentCountry,
           state: _currentState,
+          admin2: _currentProvince,
         ),
       );
 
@@ -210,11 +228,13 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
     emit(const WeatherLoading());
     _currentLat = event.lat;
     _currentLon = event.lon;
-    // ← Use the name/country that came from the search result directly
     _currentCity = event.cityName ?? _currentCity;
     _currentCountry = event.countryCode ?? _currentCountry;
-    final nextState = (event.stateName ?? '').trim();
-    _currentState = nextState;
+    _currentState = (event.stateName ?? '').trim();
+    _currentProvince = event.provinceName?.trim().isEmpty == true
+        ? null
+        : event.provinceName?.trim();
+
     await _repository.addRecentLocation(
       GeocodingResult(
         name: _currentCity.isNotEmpty ? _currentCity : 'Selected Location',
@@ -222,6 +242,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
         lon: _currentLon!,
         country: _currentCountry,
         state: _currentState,
+        admin2: _currentProvince,
       ),
     );
     await _fetchAndEmit(emit);
@@ -244,6 +265,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
           cityName: current.cityName,
           countryCode: current.countryCode,
           stateName: current.stateName,
+          provinceName: current.provinceName,
           lat: current.lat,
           lon: current.lon,
         ),
@@ -301,6 +323,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
           cityName: _currentCity.isNotEmpty ? _currentCity : 'Your Location',
           countryCode: _currentCountry,
           stateName: _currentState,
+          provinceName: _currentProvince,
           lat: lat,
           lon: lon,
           lastUpdated: DateTime.now(),
