@@ -334,8 +334,10 @@ class CurrentOpenMeteo {
     return CurrentOpenMeteo(
       time: json['time'] as String? ?? '',
       temperature2m: (json['temperature_2m'] as num?)?.toDouble() ?? 0.0,
-      relativeHumidity2m: (json['relative_humidity_2m'] as num?)?.toDouble() ?? 0.0,
-      apparentTemperature: (json['apparent_temperature'] as num?)?.toDouble() ?? 0.0,
+      relativeHumidity2m:
+          (json['relative_humidity_2m'] as num?)?.toDouble() ?? 0.0,
+      apparentTemperature:
+          (json['apparent_temperature'] as num?)?.toDouble() ?? 0.0,
       isDay: (json['is_day'] as num?)?.toInt() ?? 1,
       precipitation: (json['precipitation'] as num?)?.toDouble() ?? 0.0,
       weatherCode: (json['weather_code'] as num?)?.toInt() ?? 0,
@@ -368,10 +370,16 @@ class HourlyOpenMeteo {
 
   factory HourlyOpenMeteo.fromJson(Map<String, dynamic> json) {
     List<double> toDoubleList(dynamic data) =>
-        (data as List<dynamic>?)?.map((e) => (e as num?)?.toDouble() ?? 0.0).toList() ?? [];
+        (data as List<dynamic>?)
+            ?.map((e) => (e as num?)?.toDouble() ?? 0.0)
+            .toList() ??
+        [];
 
     List<int> toIntList(dynamic data) =>
-        (data as List<dynamic>?)?.map((e) => (e as num?)?.toInt() ?? 0).toList() ?? [];
+        (data as List<dynamic>?)
+            ?.map((e) => (e as num?)?.toInt() ?? 0)
+            .toList() ??
+        [];
 
     return HourlyOpenMeteo(
       time: (json['time'] as List<dynamic>?)?.cast<String>() ?? [],
@@ -410,10 +418,16 @@ class DailyOpenMeteo {
 
   factory DailyOpenMeteo.fromJson(Map<String, dynamic> json) {
     List<double> toDoubleList(dynamic data) =>
-        (data as List<dynamic>?)?.map((e) => (e as num?)?.toDouble() ?? 0.0).toList() ?? [];
+        (data as List<dynamic>?)
+            ?.map((e) => (e as num?)?.toDouble() ?? 0.0)
+            .toList() ??
+        [];
 
     List<int> toIntList(dynamic data) =>
-        (data as List<dynamic>?)?.map((e) => (e as num?)?.toInt() ?? 0).toList() ?? [];
+        (data as List<dynamic>?)
+            ?.map((e) => (e as num?)?.toInt() ?? 0)
+            .toList() ??
+        [];
 
     return DailyOpenMeteo(
       time: (json['time'] as List<dynamic>?)?.cast<String>() ?? [],
@@ -448,7 +462,8 @@ class AirQualityModel {
       latitude: (json['latitude'] as num).toDouble(),
       longitude: (json['longitude'] as num).toDouble(),
       timezone: json['timezone'] as String? ?? 'UTC',
-      current: CurrentAirQuality.fromJson(json['current'] as Map<String, dynamic>),
+      current:
+          CurrentAirQuality.fromJson(json['current'] as Map<String, dynamic>),
     );
   }
 }
@@ -500,6 +515,8 @@ class SavedLocation {
   final String name;
   final String country;
   final String? state;
+  /// Province/district level — shown in the UI as the location subtitle.
+  final String? admin2;
   final double lat;
   final double lon;
   final bool isHome;
@@ -510,6 +527,7 @@ class SavedLocation {
     required this.name,
     required this.country,
     this.state,
+    this.admin2,
     required this.lat,
     required this.lon,
     required this.isHome,
@@ -517,32 +535,35 @@ class SavedLocation {
   });
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'country': country,
-    'state': state,
-    'lat': lat,
-    'lon': lon,
-    'isHome': isHome,
-    'savedAt': savedAt.toIso8601String(),
-  };
+        'id': id,
+        'name': name,
+        'country': country,
+        'state': state,
+        'admin2': admin2,
+        'lat': lat,
+        'lon': lon,
+        'isHome': isHome,
+        'savedAt': savedAt.toIso8601String(),
+      };
 
   factory SavedLocation.fromJson(Map<String, dynamic> json) => SavedLocation(
-    id: json['id'] as String,
-    name: json['name'] as String,
-    country: json['country'] as String,
-    state: json['state'] as String?,
-    lat: (json['lat'] as num).toDouble(),
-    lon: (json['lon'] as num).toDouble(),
-    isHome: json['isHome'] as bool,
-    savedAt: DateTime.parse(json['savedAt'] as String),
-  );
+        id: json['id'] as String,
+        name: json['name'] as String,
+        country: json['country'] as String,
+        state: json['state'] as String?,
+        admin2: json['admin2'] as String?,
+        lat: (json['lat'] as num).toDouble(),
+        lon: (json['lon'] as num).toDouble(),
+        isHome: json['isHome'] as bool,
+        savedAt: DateTime.parse(json['savedAt'] as String),
+      );
 
   SavedLocation copyWith({
     String? id,
     String? name,
     String? country,
     String? state,
+    String? admin2,
     double? lat,
     double? lon,
     bool? isHome,
@@ -553,6 +574,7 @@ class SavedLocation {
       name: name ?? this.name,
       country: country ?? this.country,
       state: state ?? this.state,
+      admin2: admin2 ?? this.admin2,
       lat: lat ?? this.lat,
       lon: lon ?? this.lon,
       isHome: isHome ?? this.isHome,
@@ -567,7 +589,12 @@ class GeocodingResult {
   final double lat;
   final double lon;
   final String country;
+  /// admin1 — region level (e.g. "Calabarzon", "NCR"). Kept for internal use
+  /// but never shown directly in the UI.
   final String? state;
+  /// admin2 — province/district level (e.g. "Laguna", "Batangas", "England").
+  /// This is what gets displayed as the subtitle in search results.
+  final String? admin2;
   final String? localNames;
 
   GeocodingResult({
@@ -576,6 +603,7 @@ class GeocodingResult {
     required this.lon,
     required this.country,
     this.state,
+    this.admin2,
     this.localNames,
   });
 
@@ -586,6 +614,8 @@ class GeocodingResult {
       lon: (json['lon'] as num).toDouble(),
       country: json['country'] as String,
       state: json['state'] as String?,
+      admin2: json['admin2'] as String?,
+      localNames: json['local_names'] as String?,
     );
   }
 }
@@ -617,30 +647,30 @@ class WeatherAlert {
   });
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'title': title,
-    'description': description,
-    'severity': severity,
-    'event': event,
-    'startsAt': startsAt.toIso8601String(),
-    'endsAt': endsAt.toIso8601String(),
-    'isRead': isRead,
-    'lat': lat,
-    'lon': lon,
-  };
+        'id': id,
+        'title': title,
+        'description': description,
+        'severity': severity,
+        'event': event,
+        'startsAt': startsAt.toIso8601String(),
+        'endsAt': endsAt.toIso8601String(),
+        'isRead': isRead,
+        'lat': lat,
+        'lon': lon,
+      };
 
   factory WeatherAlert.fromJson(Map<String, dynamic> json) => WeatherAlert(
-    id: json['id'] as String,
-    title: json['title'] as String,
-    description: json['description'] as String,
-    severity: json['severity'] as String,
-    event: json['event'] as String,
-    startsAt: DateTime.parse(json['startsAt'] as String),
-    endsAt: DateTime.parse(json['endsAt'] as String),
-    isRead: json['isRead'] as bool,
-    lat: (json['lat'] as num).toDouble(),
-    lon: (json['lon'] as num).toDouble(),
-  );
+        id: json['id'] as String,
+        title: json['title'] as String,
+        description: json['description'] as String,
+        severity: json['severity'] as String,
+        event: json['event'] as String,
+        startsAt: DateTime.parse(json['startsAt'] as String),
+        endsAt: DateTime.parse(json['endsAt'] as String),
+        isRead: json['isRead'] as bool,
+        lat: (json['lat'] as num).toDouble(),
+        lon: (json['lon'] as num).toDouble(),
+      );
 
   WeatherAlert copyWith({bool? isRead}) {
     return WeatherAlert(
@@ -693,38 +723,41 @@ class AppSettings {
   });
 
   Map<String, dynamic> toJson() => {
-    'temperatureUnit': temperatureUnit,
-    'windSpeedUnit': windSpeedUnit,
-    'pressureUnit': pressureUnit,
-    'visibilityUnit': visibilityUnit,
-    'notifications': notifications,
-    'severeAlertNotifications': severeAlertNotifications,
-    'dailySummaryNotifications': dailySummaryNotifications,
-    'precipitationNotifications': precipitationNotifications,
-    'theme': theme,
-    'use24HourFormat': use24HourFormat,
-    'showAQI': showAQI,
-    'showUVIndex': showUVIndex,
-    'mapStyle': mapStyle,
-    'language': language,
-  };
+        'temperatureUnit': temperatureUnit,
+        'windSpeedUnit': windSpeedUnit,
+        'pressureUnit': pressureUnit,
+        'visibilityUnit': visibilityUnit,
+        'notifications': notifications,
+        'severeAlertNotifications': severeAlertNotifications,
+        'dailySummaryNotifications': dailySummaryNotifications,
+        'precipitationNotifications': precipitationNotifications,
+        'theme': theme,
+        'use24HourFormat': use24HourFormat,
+        'showAQI': showAQI,
+        'showUVIndex': showUVIndex,
+        'mapStyle': mapStyle,
+        'language': language,
+      };
 
   factory AppSettings.fromJson(Map<String, dynamic> json) => AppSettings(
-    temperatureUnit: json['temperatureUnit'] as String? ?? 'celsius',
-    windSpeedUnit: json['windSpeedUnit'] as String? ?? 'kmh',
-    pressureUnit: json['pressureUnit'] as String? ?? 'hpa',
-    visibilityUnit: json['visibilityUnit'] as String? ?? 'km',
-    notifications: json['notifications'] as bool? ?? true,
-    severeAlertNotifications: json['severeAlertNotifications'] as bool? ?? true,
-    dailySummaryNotifications: json['dailySummaryNotifications'] as bool? ?? false,
-    precipitationNotifications: json['precipitationNotifications'] as bool? ?? true,
-    theme: json['theme'] as String? ?? 'dark',
-    use24HourFormat: json['use24HourFormat'] as bool? ?? false,
-    showAQI: json['showAQI'] as bool? ?? true,
-    showUVIndex: json['showUVIndex'] as bool? ?? true,
-    mapStyle: json['mapStyle'] as String? ?? 'dark',
-    language: json['language'] as String? ?? 'en',
-  );
+        temperatureUnit: json['temperatureUnit'] as String? ?? 'celsius',
+        windSpeedUnit: json['windSpeedUnit'] as String? ?? 'kmh',
+        pressureUnit: json['pressureUnit'] as String? ?? 'hpa',
+        visibilityUnit: json['visibilityUnit'] as String? ?? 'km',
+        notifications: json['notifications'] as bool? ?? true,
+        severeAlertNotifications:
+            json['severeAlertNotifications'] as bool? ?? true,
+        dailySummaryNotifications:
+            json['dailySummaryNotifications'] as bool? ?? false,
+        precipitationNotifications:
+            json['precipitationNotifications'] as bool? ?? true,
+        theme: json['theme'] as String? ?? 'dark',
+        use24HourFormat: json['use24HourFormat'] as bool? ?? false,
+        showAQI: json['showAQI'] as bool? ?? true,
+        showUVIndex: json['showUVIndex'] as bool? ?? true,
+        mapStyle: json['mapStyle'] as String? ?? 'dark',
+        language: json['language'] as String? ?? 'en',
+      );
 
   AppSettings copyWith({
     String? temperatureUnit,
@@ -748,9 +781,12 @@ class AppSettings {
       pressureUnit: pressureUnit ?? this.pressureUnit,
       visibilityUnit: visibilityUnit ?? this.visibilityUnit,
       notifications: notifications ?? this.notifications,
-      severeAlertNotifications: severeAlertNotifications ?? this.severeAlertNotifications,
-      dailySummaryNotifications: dailySummaryNotifications ?? this.dailySummaryNotifications,
-      precipitationNotifications: precipitationNotifications ?? this.precipitationNotifications,
+      severeAlertNotifications:
+          severeAlertNotifications ?? this.severeAlertNotifications,
+      dailySummaryNotifications:
+          dailySummaryNotifications ?? this.dailySummaryNotifications,
+      precipitationNotifications:
+          precipitationNotifications ?? this.precipitationNotifications,
       theme: theme ?? this.theme,
       use24HourFormat: use24HourFormat ?? this.use24HourFormat,
       showAQI: showAQI ?? this.showAQI,
