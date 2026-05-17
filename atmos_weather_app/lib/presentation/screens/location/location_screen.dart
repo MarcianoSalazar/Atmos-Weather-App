@@ -84,7 +84,7 @@ class _LocationScreenState extends State<LocationScreen>
 
     // Recent history
     if (_repo != null) {
-      _recentLocations = _repo!.getRecentLocations(max: 8);
+      _recentLocations = _repo!.getRecentLocations(max: 5);
     }
 
     final savedKeys = _saved.map((s) => _locKey(s.lat, s.lon)).toSet();
@@ -109,6 +109,7 @@ class _LocationScreenState extends State<LocationScreen>
           lon: s.lon,
           country: s.country,
           state: s.state,
+          admin2: s.admin2,
         ),
       ),
       ..._recentLocations,
@@ -159,6 +160,7 @@ class _LocationScreenState extends State<LocationScreen>
       name: result.name,
       country: result.country,
       state: result.state,
+      admin2: result.admin2,
       lat: result.lat,
       lon: result.lon,
       isHome: _saved.isEmpty,
@@ -228,10 +230,10 @@ class _LocationScreenState extends State<LocationScreen>
   // ─── Recent history ────────────────────────────────────────────────────────
   Future<void> _addToRecent(GeocodingResult result) async {
     if (_repo == null) return;
-    await _repo!.addRecentLocation(result, max: 8);
+    await _repo!.addRecentLocation(result, max: 5);
     final savedKeys = _saved.map((s) => _locKey(s.lat, s.lon)).toSet();
     _recentLocations =
-        _dedupeRecent(_repo!.getRecentLocations(max: 8), savedKeys);
+        _dedupeRecent(_repo!.getRecentLocations(max: 5), savedKeys);
     await _persistRecent(_recentLocations);
     if (mounted) setState(() {});
   }
@@ -487,8 +489,11 @@ class _LocationScreenState extends State<LocationScreen>
         blocState is WeatherLoaded ? blocState.countryCode : null;
     final currentState =
         blocState is WeatherLoaded ? blocState.stateName : null;
+    final currentProvince =
+        blocState is WeatherLoaded ? blocState.provinceName : null;
     final currentLabel = currentCity != null
-        ? _formatCityState(currentCity, currentState)
+        ? LocationLabelFormatter.cityLine(currentCity, currentState,
+            admin2: currentProvince)
         : null;
     final currentKey = currentLat != null ? '${currentLat}_$currentLon' : null;
     final currentWeather =
@@ -620,7 +625,7 @@ class _LocationScreenState extends State<LocationScreen>
 
   Future<void> _syncFromBloc(WeatherState blocState) async {
     if (_repo == null || !mounted) return;
-    final recent = _repo!.getRecentLocations(max: 8);
+    final recent = _repo!.getRecentLocations(max: 5);
     final savedKeys = _saved.map((s) => _locKey(s.lat, s.lon)).toSet();
     final dedupedRecent = _dedupeRecent(recent, savedKeys);
     _recentLocations = dedupedRecent;
@@ -647,9 +652,6 @@ class _LocationScreenState extends State<LocationScreen>
     if (mounted) setState(() {});
   }
 
-  String _formatCityState(String city, String? state) {
-    return LocationLabelFormatter.cityLine(city, state);
-  }
 
   String _locKey(double lat, double lon) {
     return '${lat.toStringAsFixed(4)}_${lon.toStringAsFixed(4)}';
@@ -1011,8 +1013,9 @@ class _SavedLocationCard extends StatelessWidget {
     final code = current?.weatherCode ?? 0;
     final isDay = (current?.isDay ?? 1) == 1;
     final gradient = WeatherUtils.getWeatherGradient(code, isDay: isDay);
-    final cityLabel =
-        LocationLabelFormatter.cityLine(location.name, location.state);
+    final cityLabel = LocationLabelFormatter.cityLine(
+        location.name, location.state,
+        admin2: location.admin2);
     final countryLabel = location.country.trim();
 
     return GestureDetector(

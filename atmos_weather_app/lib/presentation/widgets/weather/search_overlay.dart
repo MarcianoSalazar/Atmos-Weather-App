@@ -54,7 +54,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
 
   void _loadRecent() {
     final repo = context.read<WeatherRepository>();
-    final raw = repo.getRecentLocations(max: 20);
+    final raw = repo.getRecentLocations(max: 5);
     setState(() {
       _recent = _dedupeRecent(raw);
     });
@@ -66,7 +66,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
     for (final loc in items) {
       final key = '${loc.lat.toStringAsFixed(2)}_${loc.lon.toStringAsFixed(2)}';
       if (seen.add(key)) result.add(loc);
-      if (result.length >= 8) break;
+      if (result.length >= 5) break;
     }
     return result;
   }

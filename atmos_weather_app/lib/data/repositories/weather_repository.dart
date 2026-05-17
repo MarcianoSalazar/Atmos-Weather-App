@@ -398,17 +398,64 @@ class WeatherRepository {
       final results = data['results'] as List<dynamic>?;
       if (results == null || results.isEmpty) return null;
 
-      final first = results.first as Map<String, dynamic>;
+      // Find the best result — skip roads, streets, and amenities.
+      // Geoapify sometimes returns a road as the top result for GPS coordinates
+      // that fall on or near a named road (e.g. "Calauan-Nagcarlan Road").
+      // We want a settlement (municipality, city, town, village, suburb).
+      const settlementTypes = {
+        'city',
+        'town',
+        'village',
+        'municipality',
+        'locality',
+        'suburb',
+        'district',
+        'quarter',
+        'neighbourhood',
+        'county',
+      };
+      const skipTypes = {
+        'road',
+        'street',
+        'amenity',
+        'building',
+        'postcode',
+      };
 
-      // Prefer the most specific settlement field. 'municipality' is where
-      // Geoapify puts Philippine municipality names (e.g. "Bay", "Calauan").
+      Map<String, dynamic>? best;
+      for (final e in results) {
+        final r = e as Map<String, dynamic>;
+        final rt = (r['result_type'] as String? ?? '').toLowerCase();
+        if (settlementTypes.contains(rt)) {
+          best = r;
+          break;
+        }
+      }
+      // If no settlement found, use first non-road result
+      if (best == null) {
+        for (final e in results) {
+          final r = e as Map<String, dynamic>;
+          final rt = (r['result_type'] as String? ?? '').toLowerCase();
+          if (!skipTypes.contains(rt)) {
+            best = r;
+            break;
+          }
+        }
+      }
+      // Last resort: just use first result
+      best ??= results.first as Map<String, dynamic>;
+
+      final first = best;
+
+      // Always resolve to a settlement name — never a road or POI name.
+      // 'municipality' is where Geoapify puts PH municipality names.
       final name = (first['municipality'] as String?) ??
           (first['city'] as String?) ??
           (first['town'] as String?) ??
           (first['village'] as String?) ??
           (first['suburb'] as String?) ??
           (first['hamlet'] as String?) ??
-          (first['name'] as String?) ??
+          (first['county'] as String?) ??
           (first['formatted'] as String? ?? '').split(',').first.trim();
 
       // Province extraction — mirrors _pickProvince logic.
@@ -593,7 +640,7 @@ class WeatherRepository {
   }
 
   // Recent locations
-  List<GeocodingResult> getRecentLocations({int max = 3}) {
+  List<GeocodingResult> getRecentLocations({int max = 5}) {
     final stored = _prefs.getString(AppConstants.recentLocationsKey);
     if (stored == null) return [];
     try {
@@ -609,7 +656,7 @@ class WeatherRepository {
 
   Future<void> addRecentLocation(
     GeocodingResult result, {
-    int max = 8,
+    int max = 5,
   }) async {
     final current = getRecentLocations(max: max);
     // Remove existing entries within ~1 km of the new result
