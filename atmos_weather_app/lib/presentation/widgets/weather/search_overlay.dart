@@ -54,9 +54,21 @@ class _SearchOverlayState extends State<SearchOverlay> {
 
   void _loadRecent() {
     final repo = context.read<WeatherRepository>();
+    final raw = repo.getRecentLocations(max: 20);
     setState(() {
-      _recent = repo.getRecentLocations(max: 8);
+      _recent = _dedupeRecent(raw);
     });
+  }
+
+  static List<GeocodingResult> _dedupeRecent(List<GeocodingResult> items) {
+    final seen = <String>{};
+    final result = <GeocodingResult>[];
+    for (final loc in items) {
+      final key = '${loc.lat.toStringAsFixed(2)}_${loc.lon.toStringAsFixed(2)}';
+      if (seen.add(key)) result.add(loc);
+      if (result.length >= 8) break;
+    }
+    return result;
   }
 
   @override
@@ -238,6 +250,18 @@ class _SearchResultItem extends StatelessWidget {
 
   const _SearchResultItem({required this.result, required this.onTap});
 
+  /// Title logic:
+  ///   - Has province (admin2) → "Calauan, Laguna"
+  ///   - No province           → "Calauan"
+  String get _title {
+    final province = result.admin2?.trim() ?? '';
+    if (province.isNotEmpty) return '${result.name}, $province';
+    return result.name;
+  }
+
+  /// Subtitle shows only the country.
+  String get _subtitle => result.country.trim();
+
   @override
   Widget build(BuildContext context) {
     return ListTile(
@@ -255,23 +279,23 @@ class _SearchResultItem extends StatelessWidget {
         ),
       ),
       title: Text(
-        result.name,
+        _title,
         style: const TextStyle(
           fontFamily: 'Rajdhani',
           fontSize: 16,
           fontWeight: FontWeight.w600,
           color: AppColors.white,
         ),
+        overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
-        result.state != null
-            ? '${result.state}, ${result.country}'
-            : result.country,
+        _subtitle,
         style: const TextStyle(
           fontFamily: 'Rajdhani',
           fontSize: 13,
           color: AppColors.white60,
         ),
+        overflow: TextOverflow.ellipsis,
       ),
       trailing: const Icon(
         Icons.arrow_forward_ios_rounded,
