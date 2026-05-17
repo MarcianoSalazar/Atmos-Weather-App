@@ -191,7 +191,7 @@ class WeatherBloc extends Bloc<WeatherEvent, WeatherState> {
       _currentLat = position.latitude;
       _currentLon = position.longitude;
 
-      final geo = await _repository.reverseGeocodeGeoapify(
+      final geo = await _repository.reverseGeocode(
         lat: _currentLat!,
         lon: _currentLon!,
       );
