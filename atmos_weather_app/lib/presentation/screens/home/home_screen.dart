@@ -12,7 +12,6 @@ import 'package:atmos/presentation/widgets/weather/hourly_forecast_widget.dart';
 import 'package:atmos/presentation/widgets/weather/daily_forecast_widget.dart';
 import 'package:atmos/presentation/widgets/weather/weather_details_grid.dart';
 import 'package:atmos/presentation/widgets/weather/air_quality_card.dart';
-//  import 'package:atmos/presentation/widgets/weather/sun_moon_card.dart';
 import 'package:atmos/presentation/widgets/weather/search_overlay.dart';
 import 'package:atmos/core/theme/app_theme.dart';
 import 'package:atmos/core/utils/settings_controller.dart';
@@ -77,6 +76,7 @@ class _HomeScreenState extends State<HomeScreen>
               final cityName = loaded?.cityName ?? refreshing!.cityName;
               final countryCode = loaded?.countryCode ?? '';
               final stateName = loaded?.stateName ?? refreshing!.stateName;
+              final provinceName = loaded?.provinceName ?? refreshing?.provinceName;
               final isRefreshing = state is WeatherRefreshing;
 
               final current = weather.current;
@@ -113,6 +113,7 @@ class _HomeScreenState extends State<HomeScreen>
                             cityName,
                             countryCode,
                             stateName,
+                            provinceName,
                             isRefreshing,
                             textColor: textColor,
                             subColor: subColor,
@@ -152,14 +153,6 @@ class _HomeScreenState extends State<HomeScreen>
                                   .animate()
                                   .fadeIn(duration: 500.ms, delay: 240.ms),
                             ),
-                          // if (weather.daily != null)
-                          //   SliverToBoxAdapter(
-                          //      child: SunMoonCard(
-                          //       daily: weather.daily!,
-                          //     )
-                          //         .animate()
-                          //         .fadeIn(duration: 500.ms, delay: 280.ms),
-                          //   ),
                           if (weather.daily != null)
                             SliverToBoxAdapter(
                               // Fix: wrap DailyForecastWidget in a horizontally
@@ -199,6 +192,7 @@ class _HomeScreenState extends State<HomeScreen>
                         cityName: result.name,
                         countryCode: result.country,
                         stateName: result.state,
+                        provinceName: result.admin2,
                       ),
                     );
               },
@@ -212,12 +206,14 @@ class _HomeScreenState extends State<HomeScreen>
     String cityName,
     String country,
     String stateName,
+    String? provinceName,
     bool isRefreshing, {
     required Color textColor,
     required Color subColor,
   }) {
-    final cityLabel =
-        stateName.trim().isNotEmpty ? '$cityName, $stateName' : cityName;
+    final cityLabel = provinceName != null && provinceName.trim().isNotEmpty
+        ? '$cityName, $provinceName'
+        : cityName;
     final locationDetail = country.trim();
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
