@@ -26,47 +26,61 @@ class _SearchOverlayState extends State<SearchOverlay> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
   List<GeocodingResult> _recent = [];
+  bool _isSearching = false;
 
   @override
   void initState() {
     super.initState();
     _loadRecent();
+    _controller.addListener(_onControllerChanged);
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_onControllerChanged);
     _controller.dispose();
     _debounce?.cancel();
     super.dispose();
   }
 
+  void _onControllerChanged() {
+    setState(() {}); // Rebuild to show/hide suffix X icon
+  }
+
   void _onSearchChanged(String query) {
     _debounce?.cancel();
     if (query.trim().isEmpty) {
+      setState(() => _isSearching = false);
       context.read<WeatherBloc>().add(const ClearSearch());
       _loadRecent();
       return;
     }
+    setState(() => _isSearching = true);
     _debounce = Timer(const Duration(milliseconds: 500), () {
-      context.read<WeatherBloc>().add(SearchCity(query));
+      if (mounted) context.read<WeatherBloc>().add(SearchCity(query));
     });
   }
 
   void _loadRecent() {
     final repo = context.read<WeatherRepository>();
-    final raw = repo.getRecentLocations(max: 5);
-    setState(() {
-      _recent = _dedupeRecent(raw);
-    });
+    final raw = repo.getRecentLocations(max: 10);
+    if (mounted) setState(() => _recent = _dedupeRecent(raw));
   }
 
+  Future<void> _clearRecent() async {
+    await context.read<WeatherRepository>().clearRecentLocations();
+    if (mounted) setState(() => _recent = []);
+  }
+
+  /// Dedup by name+country+coords so both screens share the same list cleanly.
   static List<GeocodingResult> _dedupeRecent(List<GeocodingResult> items) {
     final seen = <String>{};
     final result = <GeocodingResult>[];
     for (final loc in items) {
-      final key = '${loc.lat.toStringAsFixed(2)}_${loc.lon.toStringAsFixed(2)}';
+      final key = '${loc.name.toLowerCase()}_${loc.country.toLowerCase()}_'
+          '${loc.lat.toStringAsFixed(2)}_${loc.lon.toStringAsFixed(2)}';
       if (seen.add(key)) result.add(loc);
-      if (result.length >= 5) break;
+      if (result.length >= 10) break;
     }
     return result;
   }
@@ -78,7 +92,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
       child: SafeArea(
         child: Column(
           children: [
-            // Search bar
+            // ── Search bar ─────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Row(
@@ -95,6 +109,11 @@ class _SearchOverlayState extends State<SearchOverlay> {
                       ),
                       decoration: InputDecoration(
                         hintText: 'Search city or location...',
+                        hintStyle: const TextStyle(
+                          fontFamily: 'Rajdhani',
+                          color: AppColors.white40,
+                          fontSize: 16,
+                        ),
                         prefixIcon: const Icon(
                           Icons.search_rounded,
                           color: AppColors.white60,
@@ -107,9 +126,11 @@ class _SearchOverlayState extends State<SearchOverlay> {
                                 ),
                                 onPressed: () {
                                   _controller.clear();
+                                  setState(() => _isSearching = false);
                                   context
                                       .read<WeatherBloc>()
                                       .add(const ClearSearch());
+                                  _loadRecent();
                                 },
                               )
                             : null,
@@ -138,53 +159,49 @@ class _SearchOverlayState extends State<SearchOverlay> {
 
             const Divider(color: AppColors.white10, height: 1),
 
-            // Results
+            // ── Results ────────────────────────────────────────────────────
             Expanded(
               child: BlocBuilder<WeatherBloc, WeatherState>(
                 builder: (context, state) {
+                  if (_isSearching &&
+                      state is! SearchLoaded &&
+                      state is! SearchEmpty) {
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.primaryAccent,
+                        strokeWidth: 2,
+                      ),
+                    );
+                  }
+
                   if (state is SearchLoading) {
                     return const Center(
                       child: CircularProgressIndicator(
                         color: AppColors.primaryAccent,
+                        strokeWidth: 2,
                       ),
                     );
                   }
 
                   if (state is SearchLoaded) {
+                    if (state.results.isEmpty) {
+                      return _buildEmpty(_controller.text);
+                    }
                     return ListView.builder(
+                      padding: const EdgeInsets.only(top: 8),
                       itemCount: state.results.length,
                       itemBuilder: (context, i) {
-                        final result = state.results[i];
+                        final r = state.results[i];
                         return _SearchResultItem(
-                          result: result,
-                          onTap: () => widget.onLocationSelected(result),
+                          result: r,
+                          onTap: () => widget.onLocationSelected(r),
                         );
                       },
                     );
                   }
 
                   if (state is SearchEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.search_off_rounded,
-                            color: AppColors.white40,
-                            size: 56,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No results for "${state.query}"',
-                            style: const TextStyle(
-                              fontFamily: 'Rajdhani',
-                              fontSize: 16,
-                              color: AppColors.white60,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
+                    return _buildEmpty(state.query);
                   }
 
                   return _buildRecentSearches();
@@ -197,16 +214,53 @@ class _SearchOverlayState extends State<SearchOverlay> {
     );
   }
 
+  Widget _buildEmpty(String query) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.search_off_rounded,
+              color: AppColors.white40, size: 56),
+          const SizedBox(height: 16),
+          Text(
+            'No results for "$query"',
+            style: const TextStyle(
+              fontFamily: 'Rajdhani',
+              fontSize: 16,
+              color: AppColors.white60,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Try a different city name',
+            style: TextStyle(
+              fontFamily: 'Rajdhani',
+              fontSize: 13,
+              color: AppColors.white40,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildRecentSearches() {
     if (_recent.isEmpty) {
       return const Center(
-        child: Text(
-          'No recent searches yet',
-          style: TextStyle(
-            fontFamily: 'Rajdhani',
-            fontSize: 14,
-            color: AppColors.white60,
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.history_rounded, color: AppColors.white40, size: 48),
+            SizedBox(height: 12),
+            Text(
+              'No recent searches yet',
+              style: TextStyle(
+                fontFamily: 'Rajdhani',
+                fontSize: 14,
+                color: AppColors.white60,
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -214,29 +268,60 @@ class _SearchOverlayState extends State<SearchOverlay> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(20, 20, 20, 12),
-          child: Text(
-            'RECENT SEARCHES',
-            style: TextStyle(
-              fontFamily: 'Rajdhani',
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: AppColors.white60,
-              letterSpacing: 1.5,
-            ),
+        // Header: label + Clear button
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 8, 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'RECENT SEARCHES',
+                style: TextStyle(
+                  fontFamily: 'Rajdhani',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.white60,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _clearRecent,
+                style: TextButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                icon: const Icon(
+                  Icons.delete_sweep_rounded,
+                  color: AppColors.white40,
+                  size: 16,
+                ),
+                label: const Text(
+                  'Clear',
+                  style: TextStyle(
+                    fontFamily: 'Rajdhani',
+                    fontSize: 13,
+                    color: AppColors.white40,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         Expanded(
-          child: ListView(
-            children: _recent
-                .map(
-                  (r) => _SearchResultItem(
-                    result: r,
-                    onTap: () => widget.onLocationSelected(r),
-                  ),
-                )
-                .toList(),
+          child: ListView.builder(
+            padding: const EdgeInsets.only(top: 4),
+            itemCount: _recent.length,
+            itemBuilder: (context, i) {
+              final r = _recent[i];
+              return _SearchResultItem(
+                result: r,
+                isRecent: true,
+                onTap: () => widget.onLocationSelected(r),
+              );
+            },
           ),
         ),
       ],
@@ -244,65 +329,92 @@ class _SearchOverlayState extends State<SearchOverlay> {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Search Result Item
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _SearchResultItem extends StatelessWidget {
   final GeocodingResult result;
   final VoidCallback onTap;
+  final bool isRecent;
 
-  const _SearchResultItem({required this.result, required this.onTap});
+  const _SearchResultItem({
+    required this.result,
+    required this.onTap,
+    this.isRecent = false,
+  });
 
-  /// Title logic:
-  ///   - Has province (admin2) → "Calauan, Laguna"
-  ///   - No province           → "Calauan"
+  /// "Calauan" or "Calauan, Laguna" depending on whether admin2 is present
   String get _title {
     final province = result.admin2?.trim() ?? '';
-    if (province.isNotEmpty) return '${result.name}, $province';
-    return result.name;
+    return province.isNotEmpty ? '${result.name}, $province' : result.name;
   }
 
-  /// Subtitle shows only the country.
+  /// Country as subtitle
   String get _subtitle => result.country.trim();
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: AppColors.white10,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: const Icon(
-          Icons.location_on_rounded,
-          color: AppColors.primaryBright,
-          size: 20,
-        ),
-      ),
-      title: Text(
-        _title,
-        style: const TextStyle(
-          fontFamily: 'Rajdhani',
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-          color: AppColors.white,
-        ),
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Text(
-        _subtitle,
-        style: const TextStyle(
-          fontFamily: 'Rajdhani',
-          fontSize: 13,
-          color: AppColors.white60,
-        ),
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: const Icon(
-        Icons.arrow_forward_ios_rounded,
-        color: AppColors.white40,
-        size: 14,
-      ),
+    return InkWell(
       onTap: onTap,
+      splashColor: AppColors.white10,
+      highlightColor: AppColors.white10,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.white10,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                isRecent ? Icons.history_rounded : Icons.location_on_rounded,
+                color: isRecent ? AppColors.white40 : AppColors.primaryBright,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _title,
+                    style: const TextStyle(
+                      fontFamily: 'Rajdhani',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.white,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (_subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 1),
+                    Text(
+                      _subtitle,
+                      style: const TextStyle(
+                        fontFamily: 'Rajdhani',
+                        fontSize: 13,
+                        color: AppColors.white60,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: AppColors.white40,
+              size: 13,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
